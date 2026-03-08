@@ -41,10 +41,10 @@ The setup script also creates a Python venv at `scripts/.venv` and installs the 
 
 ### What you'll probably also want
 
-- **matugen** - generates Material You color schemes from wallpapers; without it the dynamic theming won't do anything
-- **ffmpeg** + **mpvpaper** - video wallpaper support
-- **ollama** - AI wallpaper analysis/tagging - This is optional but the colour sorting is much better with it. I would recommend the Gemma3:4b computer vision model to pair
-- **notify-send** - What I use for notifications
+- **matugen** - generates Material You color schemes from wallpapers - without it the dynamic theming won't do anything.
+- **ffmpeg** + **mpvpaper** - video wallpaper support.
+- **ollama** - Locally hosted LLM the project uses for wallpaper analysis/tagging - this is optional but the colour sorting is much better with it. I would recommend the Gemma3:4b computer vision model to pair with it.
+- **notify-send** - What I use for notifications.
 
 All optional tools are guarded with `has_cmd` checks - nothing will crash if something's not installed (don't quote me on that!), it just won't run that feature.
 
