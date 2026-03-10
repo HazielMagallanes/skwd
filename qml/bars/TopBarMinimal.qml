@@ -17,7 +17,7 @@ PanelWindow {
   required property var colors
   required property var clock
   required property bool barVisible
-  required property var spotifyPlayer
+  required property var activePlayer
   required property real cpuUsage
   required property real memUsage
   required property real gpuUsage
@@ -256,7 +256,7 @@ PanelWindow {
       anchors.top: parent.top
       anchors.bottom: parent.bottom
       colors: bar.colors
-      spotifyPlayer: bar.spotifyPlayer
+      activePlayer: bar.activePlayer
       diagSlant: bar.diagSlant
       barHeight: bar.barHeight
       waveformHeight: bar.waveformHeight

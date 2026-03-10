@@ -35,6 +35,7 @@
     "systemStatsFastSec": 3,
     "systemStatsSlowSec": 30
   },
+  "preferredPlayer": "spotify",
   "components": {
     "bar": true,
     "lockscreen": false,

@@ -124,22 +124,29 @@ ShellRoot {
   }
 
 
-  // MPRIS music player detection (prefers Spotify)
-  property var spotifyPlayer: {
+  // MPRIS music player detection - uses preferred player if active
+  property var activePlayer: {
     if (!Mpris.players) return null
-    let spotifyCandidate = null
-    let fallback = null
+    let preferredPlaying = null
+    let preferredAny = null
+    let fallbackPlaying = null
+    let fallbackAny = null
     for (let i = 0; i < Mpris.players.values.length; i++) {
       let player = Mpris.players.values[i]
       if (!player) continue
       let id = (player.identity || "").toLowerCase()
 
-      if (id.includes("spotify") && player.isPlaying) spotifyCandidate = player
+      let preferred = Config.preferredPlayer.toLowerCase()
+      if (id.includes(preferred)) {
+        if (player.isPlaying) preferredPlaying = player
+        else if (!preferredAny) preferredAny = player
+      }
 
-      if (player.isPlaying && !fallback) fallback = player
+      if (player.isPlaying && !fallbackPlaying) fallbackPlaying = player
+      if (!fallbackAny) fallbackAny = player
     }
 
-    return spotifyCandidate || fallback
+    return preferredPlaying || fallbackPlaying || preferredAny || fallbackAny
   }
 
 
@@ -507,7 +514,7 @@ ShellRoot {
     colors: colors
     clock: clock
     barVisible: root.barVisible
-    spotifyPlayer: root.spotifyPlayer
+    activePlayer: root.activePlayer
     cpuUsage: root.cpuUsage
     memUsage: root.memUsage
     gpuUsage: root.gpuUsage

@@ -26,7 +26,41 @@ I couldn't figure out how to grab pictures of the apps on Hyprland, so the app s
 
 ## Installing
 
-You'll need Linux and a Wayland compositor - I recommend Niri. The only hard dependencies are Quickshell and its dependencies, jq, Python3, and Grim.
+You'll need Linux and a Wayland compositor - I recommend Niri.
+
+### Dependencies
+
+#### Core
+| Dependency | Purpose |
+|---|---|
+| **Quickshell** (+ Qt6) | QML desktop shell framework |
+| **Python 3** | Scripts |
+| **jq** | JSON parsing in bash scripts |
+
+#### CLI tools
+| Dependency | Purpose |
+|---|---|
+| **matugen** | Material You color scheme generation from wallpapers |
+| **ffmpeg** | Video frame extraction and thumbnailing |
+| **playerctl** | Media player control (lyrics, now playing) |
+| **cava** | Audio visualizer for the lyrics |
+| **notify-send** | Desktop notifications |
+| **awww** | Static wallpaper with transitions |
+| **mpvpaper** | Video wallpaper rendering |
+| **linux-wallpaperengine** | For Wallpaper Engine wallpapers ...duh |
+
+#### Python packages (installed automatically via `scripts/requirements.txt`)
+| Package | Purpose |
+|---|---|
+| **requests** ≥2.28 | HTTP (Ollama, Home Assistant, lrclib) |
+| **Pillow** ≥9.0 | Image processing for wallpaper thumbnails |
+| **syncedlyrics** ≥1.0 | Synced lyrics fetching |
+
+#### Optional
+| Dependency | Purpose |
+|---|---|
+| **ollama** | Local LLM for wallpaper analysis/tagging — optional but colour sorting is much better with it. I recommend the Gemma3:4b model. |
+| **python-pam** or **pamela** | PAM authentication for the lockscreen |
 
 ```bash
 git clone https://github.com/liixini/piixident ~/.config/piixident
@@ -44,15 +78,6 @@ quickshell -p ~/.config/piixident
 ```
 
 The setup script also creates a Python venv at `scripts/.venv` and installs the dependencies from `scripts/requirements.txt`.
-
-### What you'll probably also want
-
-- **matugen** - generates Material You color schemes from wallpapers - without it the dynamic theming won't do anything.
-- **ffmpeg** + **mpvpaper** - video wallpaper support.
-- **ollama** - Locally hosted LLM the project uses for wallpaper analysis/tagging - this is optional but the colour sorting is much better with it. I would recommend the Gemma3:4b computer vision model to pair with it.
-- **notify-send** - What I use for notifications.
-
-All optional tools are guarded with `has_cmd` checks - nothing will crash if something's not installed (don't quote me on that!), it just won't run that feature.
 
 ### IPC (keybindings) & Niri and Hyprland configuration
 

@@ -8,13 +8,13 @@ Item {
   id: lyricsIsland
 
   required property var colors
-  required property var spotifyPlayer
+  required property var activePlayer
   required property real diagSlant
   required property real barHeight
   required property real waveformHeight
 
   // Playback and lyric state
-  readonly property bool musicPlaying: spotifyPlayer && spotifyPlayer.isPlaying
+  readonly property bool musicPlaying: activePlayer && activePlayer.isPlaying
   readonly property bool hasLyrics: currentLyric !== ""
 
   // Lyric line data and tracking
@@ -145,6 +145,7 @@ Item {
           let obj = JSON.parse(raw)
           if (obj.lines && obj.lines.length > 0) {
             lyricsIsland.lyricState = "haslyrics"
+            if (obj.player) syncProcess.activePlayer = obj.player
             lyricsIsland.clearLyricsAnimated(obj)
           }
         } catch (e) {}
@@ -164,11 +165,15 @@ Item {
   }
 
   // Playerctl position sync process
+  // Uses preferred player if playing, otherwise queries any playing player
   Process {
     id: syncProcess
     property string buf: ""
     property real launchTime: 0
-    command: ["playerctl", "position"]
+    property string activePlayer: ""
+    command: activePlayer
+             ? ["playerctl", "--player=" + activePlayer, "position"]
+             : ["playerctl", "--player=" + Config.preferredPlayer + ",%any", "position"]
     stdout: SplitParser {
       onRead: data => { syncProcess.buf += data }
     }
@@ -306,7 +311,7 @@ Item {
     anchors.left: parent.left
     anchors.leftMargin: lyricsIsland.diagSlant + 10
     anchors.verticalCenter: parent.verticalCenter
-    text: lyricsIsland.spotifyPlayer ? lyricsIsland.spotifyPlayer.trackArtist.toUpperCase() : ""
+    text: lyricsIsland.activePlayer ? lyricsIsland.activePlayer.trackArtist.toUpperCase() : ""
     font.pixelSize: 12
     font.weight: Font.DemiBold
     font.family: Style.fontFamily
@@ -325,9 +330,9 @@ Item {
     anchors.rightMargin: lyricsIsland.diagSlant + 10
     anchors.verticalCenter: parent.verticalCenter
     text: {
-      if (!lyricsIsland.spotifyPlayer) return ""
-      var t = lyricsIsland.spotifyPlayer.trackTitle
-      var a = lyricsIsland.spotifyPlayer.trackArtist
+      if (!lyricsIsland.activePlayer) return ""
+      var t = lyricsIsland.activePlayer.trackTitle
+      var a = lyricsIsland.activePlayer.trackArtist
       if (a && t.toLowerCase().startsWith(a.toLowerCase() + " - "))
         t = t.substring(a.length + 3)
       return t.toUpperCase()
