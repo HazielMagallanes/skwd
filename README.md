@@ -128,7 +128,8 @@ sudo chmod +x /usr/share/skwd/scripts/bash/*
 sudo chmod +x /usr/share/skwd/scripts/python/*
 printf '#!/bin/sh\nexport SKWD_INSTALL=/usr/share/skwd\nexec quickshell -p /usr/share/skwd "$@"\n' | sudo tee /usr/bin/skwd > /dev/null
 sudo chmod +x /usr/bin/skwd
-/usr/share/skwd/scripts/bash/setup
+cd /usr/share/skwd/scripts/bash
+./setup
 skwd &
 ```
 
