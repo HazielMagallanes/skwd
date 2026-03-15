@@ -5,10 +5,40 @@
 ![Window switcher](screenshots/image-2.png)
 ![App launcher](screenshots/image-4.png)
 
+## What is Skwd?
+Skwd is a platform-agnostic aesthetics-first modular group of parallelogram desktop widgets with full support for colour theming based on your wallpaper powered by Matugen replicating common Desktop Shell functionality.
 
-## Please read before continuing - It is important believe it or not
+If you don't speak nerd that means that it is a collection of things like wallpaper switchers, app launchers and bar that has support for large splash art for high aesthetic styling that you can select which ones you use and which ones you don't and the colours update automatically as you change your wallpaper to match.
 
-This is my daily-driver personal desktop shell, built with [Quickshell](https://quickshell.outfoxxed.me/) (Qt6/QML). I use Niri but I have added functionality for Hyprland and a best-guess stub for Sway configuration. If you're a person that is using a sane person default like say KDE Plasma on Fedora I'm sure you can figure out how to run the Quickshell components of this repository.
+Skwd is also built with high customisability in mind where you can configure many things extremely granularly like custom naming, icons, search groups, splash art and more.
+
+### Supported OS:es
+Support tested specifically for Arch Linux & Fedora, where fully automated Fedora support is still WIP but manual install is available.
+That means working on:
+- **Arch Linux** and Arch Linux-derivatives like CachyOS and EndeavourOS.
+- **Fedora** and Fedora-derivatives like Bazzite and Nobara.
+
+However it should work just fine on NixOS after some adaptations and I will specifically support NixOS when I find time for it.
+
+### Supported compositors
+Tested functional on Niri, Hyprland and Kwin (KDE Plasma).
+
+### Components
+- **Top Bar** - System bar with clock, weather, Wi-Fi, Bluetooth, volume, calendar, and a music player with synced lyrics and audio visualizer. Each module is able to be enabled or disabled to suit your needs.
+- **App Launcher** - Parallelogram-tiled application launcher supporting tag search. Also has frequency-based searching meaning the order of apps is based on which one you selected on that keyword the most.
+- **Window Switcher** - Alt+Tab window switcher with thumbnail previews (only using Niri)
+- **Wallpaper Selector** - Browse, search, and apply static/video/Wallpaper Engine wallpapers with Matugen colour theming. Has video previews for those wallpapers that are animated.
+- **Power Menu** - Shutdown, reboot, suspend, logout but fully configurable to do anything you want really.
+- **Notifications** - Desktop notification display and history
+
+### Work in progress - Coming soon:
+- **Lockscreen** - PAM-authenticated lockscreen
+- **Smart Home** - Home Assistant panel for those that want to control their lights or blinds through a QML widget (I know I do!)
+- **Greeter** - Quickshell greeter for sddm
+
+## The long story - Personal motivation and development practices
+
+This is my daily-driver personal desktop shell, built with [Quickshell](https://quickshell.outfoxxed.me/) (Qt6/QML).
 
 While I am a professional at writing code I am not a professional at writing Quickshell, Bash or Python which is the main parts of this project and if something has better options for execution feel free to inform me about better solutions - there is no pride here!
 
@@ -22,30 +52,30 @@ Note that there's code in this repository that uses the compositor value from th
 
 ## Known defects / Good to know
 
-I couldn't figure out how to grab pictures of the apps on Hyprland, so the app switcher is simply just nice coloured boxes with the app icon. If you figure it out give me a shout.
+The only compositor that has images in the app switcher is Niri as I use Niri's screenshotting system to generate those. All others simply have nice coloured parallelograms and icons.
 
 A lot of nice looking stuff relies on the functionality of your compositor such as blur so you'll have to set that up as your heart desires - I make no assumptions about your compositor or how you want things to work for it.
 
 ## Roadmap / TODO
 I am currently in the process of standardising this project to be automatically installable for Arch Linux, Fedora and NixOS through their respective package repositories.
+Arch is done and fully functional, but Fedora and NixOS remains.
 
 However it is a lot of work and testing and I have other things to do than to customise Linux like working 😭
 
-On top of that I am almost daily refactoring the code base to follow some semblence of separation of concern as it was developed in a POC fashion.
-
 After that I would like to resume work on the Smarthome component and finalise the lockscreen & greeter.
 
-## Installing
 
-You'll need Linux and a Wayland compositor - I recommend Niri.
-
-### Dependencies
+## Dependencies
 
 #### Core
 | Dependency | Purpose |
 |---|---|
-| **Quickshell** (+ Qt6) | QML desktop shell framework |
-| **Python 3** | Scripts |
+| **quickshell** (+ Qt6) | QML desktop shell framework |
+| **qt6-multimedia** | Media playback support |
+| **qt6-connectivity** | Bluetooth support |
+| **python** | Scripts |
+| **python-requests** | HTTP (Ollama, Home Assistant, lrclib) |
+| **python-pillow** | Image processing for wallpaper thumbnails |
 | **jq** | JSON parsing in bash scripts |
 
 #### CLI tools
@@ -53,57 +83,56 @@ You'll need Linux and a Wayland compositor - I recommend Niri.
 |---|---|
 | **matugen** | Material You color scheme generation from wallpapers |
 | **ffmpeg** | Video frame extraction and thumbnailing |
+| **parallel** | Parallel task execution |
 | **playerctl** | Media player control (lyrics, now playing) |
 | **cava** | Audio visualizer for the lyrics |
-| **notify-send** | Desktop notifications |
+| **libnotify** | Desktop notifications (notify-send) |
 | **awww** | Static wallpaper with transitions |
 | **mpvpaper** | Video wallpaper rendering |
-| **linux-wallpaperengine** | For Wallpaper Engine wallpapers ...duh |
+| **imagemagick** | Image manipulation |
 
-#### Python packages (installed automatically via `scripts/requirements.txt`)
-| Package | Purpose |
+#### Fonts
+| Dependency | Purpose |
 |---|---|
-| **requests** ≥2.28 | HTTP (Ollama, Home Assistant, lrclib) |
-| **Pillow** ≥9.0 | Image processing for wallpaper thumbnails |
-| **syncedlyrics** ≥1.0 | Synced lyrics fetching |
+| **ttf-roboto** | Primary UI font |
+| **ttf-roboto-mono** | Monospace font |
+| **ttf-nerd-fonts-symbols** | Icon glyphs |
+| **ttf-material-design-icons-desktop-git** | Material Design icons |
 
 #### Optional
 | Dependency | Purpose |
 |---|---|
-| **ollama** | Local LLM for wallpaper analysis/tagging - optional but colour sorting is much better with it. I recommend the Gemma3:4b model which is also installed in the install script. |
-| **python-pam** or **pamela** | PAM authentication for the lockscreen, currently WIP and the lockscreen is not shipped as it is very hacky and only viable as a PoC |
+| **linux-wallpaperengine** | Steam Wallpaper Engine support |
+| **ollama** | Local LLM for wallpaper analysis/tagging - colour sorting is much better with it. I recommend Gemma3:4b. |
+| **grim** | Screenshot capture for window switcher thumbnails |
+| **niri** | Recommended Wayland compositor |
 
-### Git Clone (if you're not on Arch)
+## Installing
 
-WIP - Adding and testing Fedora & NixOS support
-
-```bash
-git clone https://github.com/liixini/skwd ~/.config/skwd
-cd ~/.config/skwd
-./scripts/bash/setup
-skwd
-```
+You'll need Linux and a Wayland compositor - I recommend Niri.
 
 ### AUR (Arch Linux)
 
 ```bash
 yay -S skwd-git
-./usr/share/skwd/scripts/bash/setup
-skwd
+cd /usr/share/skwd/scripts/bash/ 
+./setup
+skwd &
 ```
 
-### Fedora (DNF) - WIP
+### Manual install
 
 ```bash
-git clone https://github.com/liixini/skwd ~/.config/skwd
-cd ~/.config/skwd
-./scripts/bash/setup          # auto-detects Fedora and installs via dnf/COPR
-skwd
+sudo git clone https://github.com/liixini/skwd /usr/share/skwd
+sudo chmod +x /usr/share/skwd/scripts/bash/*
+sudo chmod +x /usr/share/skwd/scripts/python/*
+printf '#!/bin/sh\nexport SKWD_INSTALL=/usr/share/skwd\nexec quickshell -p /usr/share/skwd "$@"\n' | sudo tee /usr/bin/skwd > /dev/null
+sudo chmod +x /usr/bin/skwd
+/usr/share/skwd/scripts/bash/setup
+skwd &
 ```
 
-The setup script auto-detects your compositor, monitor, GPU, Wi-Fi interface, and Steam paths, then generates `config.json`. It creates a Python venv at `~/.config/skwd/.venv` and installs dependencies from `scripts/requirements.txt`.
-
-For AUR installs, read-only files live in `/usr/share/skwd` (set via `SKWD_INSTALL` in `/etc/profile.d/skwd.sh`). User config lives in `~/.config/skwd/data/` and cache in `~/.cache/skwd/`.
+Note that the setup script isn't strictly necessary and is provided as a convenience, but you will have to do some manual work to get the system running if you don't run it.
 
 ### IPC (keybindings) & Niri and Hyprland configuration
 
@@ -113,27 +142,31 @@ The shell reads commands from a FIFO:
 echo "launcher" > "${XDG_RUNTIME_DIR}/skwd/cmd"
 ```
 
-You'll want to wire this up in your compositor config. On niri that looks like:
-
+You'll want to wire this up in your compositor config.
+On Niri that looks like:
 ```
 Mod+R { spawn-sh "echo applauncher > ${XDG_RUNTIME_DIR}/skwd/cmd"; }
 ```
-on Hyprland it looks like:
 
+on Hyprland it looks like:
 ```
 bind = $mainMod, R, exec, echo applauncher > ${XDG_RUNTIME_DIR}/skwd/cmd
+```
 
+On KDE Plasma (Kwin) you can use the Shortcut widget to add keybinds & corresponding commands like so:
+```
+bash -c 'echo launcher > ${XDG_RUNTIME_DIR}/skwd/cmd'
 ```
 
 Commands: `lock`, `powermenu`, `launcher` (alias: `applauncher`), `toggleBar`, `wallpaper`, `smarthome`, `notifications`, `switcherOpen`, `switcherNext`, `switcherPrev`, `switcherConfirm`, `switcherCancel`, `switcherClose`.
 
 ### Provided for convenience is a full list of Niri keybinds as well as useful start configuration and layer rules:
 ```
-# Start skwd shell (via quickshell)
-spawn-at-startup "quickshell" "-p" "~/.config/skwd/shell.qml"
+# Start skwd shell
+spawn-at-startup "skwd"
 
 # Restore last wallpaper on startup
-spawn-at-startup "~/.config/skwd/scripts/bash/restore-wallpaper"
+spawn-at-startup "/usr/share/skwd/scripts/bash/restore-wallpaper"
 
 layer-rule {
     match namespace="^window-switcher-parallel$"
@@ -198,7 +231,7 @@ Alt+C { spawn-sh "echo switcherClose > ${XDG_RUNTIME_DIR}/skwd/cmd"; }
 exec-once = skwd
 
 # Restore last wallpaper on startup
-exec-once = ~/.config/skwd/scripts/bash/restore-wallpaper
+exec-once = /usr/share/skwd/scripts/bash/restore-wallpaper
 
 bind = $mainMod, R, exec, echo applauncher > ${XDG_RUNTIME_DIR}/skwd/cmd
 bind = $mainMod, D, exec, echo toggleBar > ${XDG_RUNTIME_DIR}/skwd/cmd
@@ -213,6 +246,13 @@ bind = ALT, RETURN, exec, echo switcherConfirm > ${XDG_RUNTIME_DIR}/skwd/cmd
 bind = ALT, escape, exec, echo switcherCancel > ${XDG_RUNTIME_DIR}/skwd/cmd
 bind = ALT, C, exec, echo switcherClose > ${XDG_RUNTIME_DIR}/skwd/cmd
 ```
+
+### KDE Plasma (Kwin) support is experimental but tested as functional
+# Open the shortcuts app, edit and add a keybind with the following:
+```
+bash -c 'echo launcher > ${XDG_RUNTIME_DIR}/skwd/cmd'
+```
+
 
 ### Disabling stuff
 
@@ -235,12 +275,20 @@ Every major component can be turned off in `data/config.json` under `components`
             "visualizerBottom": true
         }
     },
-  "lockscreen": true,
-  "appLauncher": true,
-  "wallpaperSelector": true,
-  "windowSwitcher": true,
-  "powerMenu": true,
-  "smartHome": true,
+    "lockscreen": false,
+    "appLauncher": true,
+    "wallpaperSelector": true,
+    "windowSwitcher": true,
+    "powerMenu": {
+        "enabled": true,
+        "items": [
+            { "action": "lock", "icon": "", "label": "" },
+            { "action": "logout", "icon": "", "label": "" },
+            { "action": "reboot", "icon": "", "label": "" },
+            { "action": "poweroff", "icon": "", "label": "" }
+        ]
+    },
+    "smartHome": false,
     "notifications": true
 }
 ```
@@ -295,44 +343,6 @@ Process {
 
 Config values come from `qml/Config.qml`, a singleton that reads `data/config.json` through a FileView with hot-reload.
 
-### What's still niri-specific
-
-The biggest remaining coupling is the event stream parsing in `shell.qml`. The `wm-action event-stream` command outputs JSON lines, but the format differs per compositor so there's definitely work to be done there to make it work for all cases.
-
-The QML code in `shell.qml` currently only parses niri's event format. To support another compositor, you'd need to either:
-
-1. Normalise in `wm-action` and translate.
-2. Branch in QML directly with a conditional - up to you.
-
-The `list-windows` outputs also have compositor-specific JSON shapes. The QML component `WindowSwitcherParallel.qml` parse these directly.
-
 ## Questions?
 
-Probably. Once again this was never meant to be released to the public, but I have as said made a best effort to decouple things for you to be able to use.
-Realistically you could probably just grab one of the QML files, rip out all the interdependency and just use that standalone if that's more your vibe though.
-
-#### Fedora/COPR external dependencies
-
-Some features require tools not yet packaged for Fedora:
-
-- **matugen** (Material You color extraction): https://github.com/InioX/matugen
-- **mpvpaper** (video wallpaper): https://github.com/GhostWriters/mpvpaper
-
-If you want these features, install them manually:
-
-```sh
-git clone https://github.com/InioX/matugen.git
-cd matugen
-pip install . --user
-
-# For mpvpaper
-sudo dnf install mpv meson ninja pkg-config gcc
-# Then:
-git clone https://github.com/GhostWriters/mpvpaper.git
-cd mpvpaper
-meson setup build
-ninja -C build
-sudo ninja -C build install
-```
-
-These are only recommended, not required. All other dependencies are available in Fedora or COPR (see above).
+Probably! Feel free to open an issue if something doesn't work or a PR if you think something should work another way. This software is quite complex and very finnicky in interoperability so the more feedback I have the better. And if you actually reached this line without scrolling to the end - you're a beast!
