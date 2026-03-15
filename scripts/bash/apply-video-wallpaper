@@ -47,7 +47,7 @@ pkill awww-daemon 2>/dev/null
 
 if [ -f "$thumb_path" ]; then
   cp "$thumb_path" "$wall_dir/wallpaper.jpg"
-  command -v matugen >/dev/null && matugen -c "$SKWD_MATUGEN_CONFIG" image -t "$matugen_scheme" "$thumb_path"
+  command -v matugen >/dev/null && matugen -c "$SKWD_MATUGEN_CONFIG" image -t "$matugen_scheme" --source-color-index 0 "$thumb_path"
   "$scripts_dir/apply-niri-colors"
   "$scripts_dir/generate-omp-theme"
 fi

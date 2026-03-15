@@ -81,7 +81,7 @@ fi
 preview=$(find "$we_dir/$we_id" -maxdepth 1 -iname 'preview.*' -type f 2>/dev/null | head -1)
 if [ -n "$preview" ]; then
   cp "$preview" "$wall_dir/wallpaper.jpg"
-  has_cmd matugen && matugen -c "$SKWD_MATUGEN_CONFIG" image -t "$matugen_scheme" "$preview"
+  has_cmd matugen && matugen -c "$SKWD_MATUGEN_CONFIG" image -t "$matugen_scheme" --source-color-index 0 "$preview"
   "$(dirname "$0")/apply-niri-colors"
   "$(dirname "$0")/generate-omp-theme"
 fi

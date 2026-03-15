@@ -23,7 +23,7 @@ def get_matugen_colors(image_path: Path) -> dict | None:
     """Run matugen on an image and extract all colors (dark mode)"""
     try:
         result = subprocess.run(
-            ["matugen", "image", str(image_path), "--dry-run", "--json", "hex"],
+            ["matugen", "image", str(image_path), "--dry-run", "--json", "hex", "--source-color-index", "0"],
             capture_output=True,
             text=True,
             timeout=30

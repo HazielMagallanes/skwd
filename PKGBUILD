@@ -1,8 +1,8 @@
 # Maintainer: liixini <https://github.com/liixini>
 pkgname=skwd-git
-pkgver=r45.e555232
+pkgver=r23.e485c2e
 pkgrel=1
-pkgdesc="A skewed take on desktop shells — Quickshell/QML desktop environment"
+pkgdesc="A skewed take on desktop shells - Quickshell/QML desktop environment"
 arch=('any')
 url="https://github.com/liixini/skwd"
 license=('MIT')
@@ -10,6 +10,7 @@ depends=(
   'quickshell-git'
   'qt6-base'
   'qt6-connectivity'
+  'qt6-multimedia'
   'python'
   'python-requests'
   'python-pillow'
