@@ -8,6 +8,7 @@ import ".."
 import "../components"
 
 // Notification popup toasts
+Scope {
   id: notifScope
 
   // State and layout properties
@@ -628,3 +629,4 @@ import "../components"
     }
   }
 }
+
