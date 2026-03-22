@@ -14,6 +14,7 @@ echo '{"type":"video","path":"'"$1"'"}' > "$SKWD_CACHE/last-wallpaper.json"
 
 # Run in background subshell via nohup
 nohup bash -c '
+. "$1/lib.sh"
 scripts_dir="$1"
 video_path="$2"
 wall_dir="$3"
@@ -52,10 +53,7 @@ if [ -f "$thumb_path" ]; then
   "$scripts_dir/generate-omp-theme"
 fi
 
-command -v kwriteconfig6 >/dev/null && kwriteconfig6 --file kdeglobals --group General --key ColorScheme "$kde_scheme"
-
-command -v gdbus >/dev/null && gdbus emit --session --object-path /kdeglobals --signal org.kde.kconfig.notify.ConfigChanged \
-  "{'\''General'\'': [[byte 0x43, 0x6f, 0x6c, 0x6f, 0x72, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x65]]}"
+apply_kde_colors "$kde_scheme"
 
 pkill -USR1 kitty 2>/dev/null
 command -v spicetify >/dev/null && spicetify refresh &>/dev/null &

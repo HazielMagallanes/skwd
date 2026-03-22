@@ -86,6 +86,13 @@ Column {
       property bool appExpanded: false
       property string appKey: modelData
       property var appEntry: root.panel.appsData[appKey] ?? {}
+
+      Connections {
+        target: root.panel
+        function onAppsDataChanged() {
+          appCard.appEntry = root.panel.appsData[appCard.appKey] ?? {}
+        }
+      }
       property bool _matchesSearch: {
         if (!root.panel._appSearchFilter) return true
         var q = root.panel._appSearchFilter
@@ -210,7 +217,7 @@ Column {
                 Text {
                   anchors.centerIn: parent
                   text: appCard.appEntry.icon ?? ""
-                  font.family: Style.fontFamilyNerdIcons
+                  font.family: Style.fontFamilyIcons
                   font.pixelSize: 18
                   color: root.colors ? root.colors.primary : "#4fc3f7"
                   visible: (appCard.appEntry.icon ?? "") !== ""
@@ -239,7 +246,7 @@ Column {
                   anchors.leftMargin: 10
                   anchors.rightMargin: 10
                   verticalAlignment: TextInput.AlignVCenter
-                  font.family: Style.fontFamilyNerdIcons
+                  font.family: Style.fontFamilyIcons
                   font.pixelSize: 14
                   color: root.colors ? root.colors.tertiary : "#8bceff"
                   clip: true

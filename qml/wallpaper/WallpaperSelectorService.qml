@@ -22,6 +22,7 @@ QtObject {
   property string tagsFile: cacheBaseDir + "/wallpaper/tags.json"
   property string colorsFile: cacheBaseDir + "/wallpaper/colors.json"
   property string matugenFile: cacheBaseDir + "/wallpaper/matugen-colors.json"
+  property string favouritesFile: cacheBaseDir + "/wallpaper/favourites.json"
 
   // Cache state
   property string lastCacheMtime: ""
@@ -43,10 +44,14 @@ QtObject {
   property var tagsDb: ({})
   property var colorsDb: ({})
   property var matugenDb: ({})
+  property var favouritesDb: ({})
+  property bool favouriteFilterActive: false
+  property bool _favouritesLoaded: false
 
   property var _tagsFileView: FileView { path: service.tagsFile; preload: true }
   property var _colorsFileView: FileView { path: service.colorsFile; preload: true }
   property var _matugenFileView: FileView { path: service.matugenFile; preload: true }
+  property var _favouritesFileView: FileView { path: service.favouritesFile; preload: true }
 
   function reloadMetadata() {
     try {
@@ -82,7 +87,46 @@ QtObject {
         service.matugenDb = JSON.parse(mText)
       }
     } catch (e) { console.log("Error parsing matugen JSON:", e) }
+
+    try {
+      var fText = _favouritesFileView.text()
+      if (fText.length > 0 && !_favouritesLoaded) {
+        service.favouritesDb = JSON.parse(fText)
+        service._favouritesLoaded = true
+      }
+    } catch (e) { console.log("Error parsing favourites JSON:", e) }
   }
+
+  function isFavourite(name, weId) {
+    var key = weId ? weId : name
+    return !!favouritesDb[key]
+  }
+
+  function toggleFavourite(name, weId) {
+    var key = weId ? weId : name
+    var db = JSON.parse(JSON.stringify(favouritesDb))
+    if (db[key]) {
+      delete db[key]
+    } else {
+      db[key] = true
+    }
+    favouritesDb = db
+    saveFavouritesToDisk()
+    if (favouriteFilterActive) updateFilteredModel()
+  }
+
+  property var _saveFavourites: Process {
+    id: saveFavourites
+    command: ["bash", "-c", "true"]
+  }
+
+  function saveFavouritesToDisk() {
+    var json = JSON.stringify(favouritesDb)
+    _saveFavourites.command = ["bash", "-c", "printf '%s' " + JSON.stringify(json) + " > " + JSON.stringify(favouritesFile)]
+    _saveFavourites.running = true
+  }
+
+  onFavouriteFilterActiveChanged: updateFilteredModel()
 
   // Ollama analysis state
   property bool ollamaTaggingActive: false
@@ -121,6 +165,7 @@ QtObject {
       var effectiveType = (item.type === "we" && item.videoFile) ? "video" : item.type
       if (selectedTypeFilter !== "" && effectiveType !== selectedTypeFilter) continue
       if (selectedColorFilter !== -1 && hue !== selectedColorFilter) continue
+      if (favouriteFilterActive && !isFavourite(item.name, item.weId)) continue
 
       if (selectedTags.length > 0) {
         var wallpaperTags = tagsDb[lookupKey]
@@ -186,6 +231,28 @@ QtObject {
   }
 
   function deleteWallpaperItem(type, name, weId) {
+    for (var i = filteredModel.count - 1; i >= 0; i--) {
+      var fi = filteredModel.get(i)
+      if (fi.name === name && (fi.weId || "") === (weId || "")) {
+        filteredModel.remove(i)
+        break
+      }
+    }
+
+    for (var j = wallpaperModel.count - 1; j >= 0; j--) {
+      var wi = wallpaperModel.get(j)
+      if (wi.name === name && (wi.weId || "") === (weId || "")) {
+        wallpaperModel.remove(j)
+        break
+      }
+    }
+
+    _pruneCacheLine.command = ["bash", "-c",
+      "grep -v " + JSON.stringify("\"name\":\"" + name + "\"") + " " +
+      JSON.stringify(wallpaperListCache) + " > " + JSON.stringify(wallpaperListCache + ".tmp") +
+      " && mv " + JSON.stringify(wallpaperListCache + ".tmp") + " " + JSON.stringify(wallpaperListCache)
+    ]
+
     if (type === "we") {
       _deleteWallpaper.command = ["rm", "-rf", weDir + "/" + weId]
     } else {
@@ -288,7 +355,12 @@ QtObject {
 
   property var _deleteWallpaper: Process {
     command: ["bash", "-c", "true"]
-    onExited: _clearCache.running = true
+    onExited: _pruneCacheLine.running = true
+  }
+
+  property var _pruneCacheLine: Process {
+    id: pruneCacheLine
+    command: ["bash", "-c", "true"]
   }
 
   property var _clearCache: Process {

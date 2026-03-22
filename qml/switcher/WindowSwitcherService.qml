@@ -24,6 +24,8 @@ QtObject {
   property var _appConfigFile: FileView {
     path: service.configPath
     preload: true
+    watchChanges: true
+    onFileChanged: _appConfigFile.reload()
   }
 
   function loadAppConfig() {

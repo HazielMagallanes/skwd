@@ -341,6 +341,7 @@ ShellRoot {
 
       try {
         let json = JSON.parse(root.weatherParts.join(""))
+        if (!json) return
 
         if (json.current_condition && json.current_condition[0]) {
           let curr = json.current_condition[0]

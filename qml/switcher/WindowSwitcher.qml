@@ -380,7 +380,7 @@ Scope {
             text: service.getIcon(model.appId)
             property int iconSize: 96
             font.pixelSize: iconSize
-            font.family: Style.fontFamilyMono
+            font.family: Style.fontFamilyIcons
             opacity: windowThumb.visible ? 0.7 : 1.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
             color: delegateItem.isCurrent

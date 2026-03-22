@@ -54,6 +54,7 @@ Scope {
 
   onShowingChanged: {
     if (showing) {
+      _restorePending = true
       service.startCacheCheck()
       cardShowTimer.restart()
     } else {
@@ -94,20 +95,10 @@ Scope {
 
   property real lastContentX: 0
   property int lastIndex: 0
+  property bool _restorePending: false
 
 
   property bool cardVisible: false
-
-
-
-  // Right-click context menu state
-  property string contextMenuName: ""
-  property string contextMenuType: ""
-  property string contextMenuWeId: ""
-  property string contextMenuPath: ""
-  property real contextMenuX: 0
-  property real contextMenuY: 0
-  property bool contextMenuVisible: false
 
 
   // Full-screen overlay panel
@@ -352,6 +343,7 @@ Scope {
               visible: typeMouseArea.containsMouse
               text: modelData.label
               delay: 500
+              contentWidth: implicitContentWidth
             }
           }
         }
@@ -501,8 +493,62 @@ Scope {
               visible: sortMouseArea.containsMouse
               text: modelData.label
               delay: 500
+              contentWidth: implicitContentWidth
             }
           }
+        }
+      }
+
+      // Separator
+      Rectangle {
+        width: 1; height: 18
+        color: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.3) : Qt.rgba(1, 1, 1, 0.2)
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      // Favourite filter
+      Rectangle {
+        id: favFilterBtn
+        width: 32; height: 24; radius: 4
+        property bool isSelected: service.favouriteFilterActive
+        property bool isHovered: favFilterMouse.containsMouse
+
+        color: isSelected
+          ? (wallpaperSelector.colors ? wallpaperSelector.colors.primary : "#4fc3f7")
+          : (isHovered
+            ? (wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.surfaceVariant.r, wallpaperSelector.colors.surfaceVariant.g, wallpaperSelector.colors.surfaceVariant.b, 0.5) : Qt.rgba(1, 1, 1, 0.15))
+            : "transparent")
+
+        border.width: isSelected ? 0 : 1
+        border.color: isHovered ? (wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.4) : Qt.rgba(1, 1, 1, 0.2)) : "transparent"
+
+        Behavior on color { ColorAnimation { duration: 100 } }
+        Behavior on border.color { ColorAnimation { duration: 100 } }
+        anchors.verticalCenter: parent.verticalCenter
+
+        Text {
+          anchors.centerIn: parent
+          text: "󰋑"
+          font.pixelSize: 14
+          font.family: Style.fontFamilyNerdIcons
+          color: parent.isSelected
+            ? (wallpaperSelector.colors ? wallpaperSelector.colors.primaryText : "#000")
+            : (wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff")
+        }
+
+        MouseArea {
+          id: favFilterMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: service.favouriteFilterActive = !service.favouriteFilterActive
+        }
+
+        ToolTip {
+          visible: favFilterMouse.containsMouse
+          text: "Favourites"
+          delay: 500
+          contentWidth: implicitContentWidth
         }
       }
 
@@ -713,10 +759,27 @@ Scope {
       property bool keyboardNavActive: false
       property real lastMouseX: -1
       property real lastMouseY: -1
+      property bool animateRemoval: false
+
+      Timer {
+        id: removeAnimResetTimer
+        interval: 350
+        onTriggered: sliceListView.animateRemoval = false
+      }
 
       highlightFollowsCurrentItem: true
       highlightMoveDuration: 350
       highlight: Item {}
+
+      remove: Transition {
+        enabled: sliceListView.animateRemoval
+        NumberAnimation { property: "y"; to: sliceListView.height + 50; duration: 300; easing.type: Easing.InCubic }
+        NumberAnimation { property: "opacity"; to: 0; duration: 300 }
+      }
+      displaced: Transition {
+        enabled: sliceListView.animateRemoval
+        NumberAnimation { properties: "x,y"; duration: 300; easing.type: Easing.OutCubic }
+      }
 
       preferredHighlightBegin: (width - wallpaperSelector.expandedWidth) / 2
       preferredHighlightEnd: (width + wallpaperSelector.expandedWidth) / 2
@@ -742,9 +805,12 @@ Scope {
         }
       }
       onCountChanged: {
-        if (count > 0 && wallpaperSelector.showing) {
+        if (count > 0 && wallpaperSelector.showing && wallpaperSelector._restorePending) {
+          wallpaperSelector._restorePending = false
           contentX = wallpaperSelector.lastContentX
           currentIndex = Math.min(wallpaperSelector.lastIndex, count - 1)
+        } else if (count > 0 && wallpaperSelector.showing) {
+          currentIndex = Math.min(currentIndex, count - 1)
         }
       }
 
@@ -854,6 +920,27 @@ Scope {
         height: sliceListView.height
         property bool isCurrent: ListView.isCurrentItem
         property bool isHovered: itemMouseArea.containsMouse
+        property bool flipped: false
+
+        property string videoPath: model.videoFile ? model.videoFile : ""
+        property bool hasVideo: videoPath.length > 0
+        property bool videoActive: false
+
+        onIsCurrentChanged: {
+          if (!isCurrent) flipped = false
+          if (isCurrent && hasVideo) {
+            videoDelayTimer.restart()
+          } else {
+            videoDelayTimer.stop()
+            videoActive = false
+          }
+        }
+
+        Timer {
+          id: videoDelayTimer
+          interval: 300
+          onTriggered: delegateItem.videoActive = true
+        }
 
         z: isCurrent ? 100 : (isHovered ? 90 : 50 - Math.min(Math.abs(index - sliceListView.currentIndex), 50))
 
@@ -889,6 +976,43 @@ Scope {
             return point.x >= leftX && point.x <= rightX && point.y >= 0 && point.y <= h
           }
         }
+
+        Loader {
+          id: sharedVideoLoader
+          width: delegateItem.width
+          height: delegateItem.height
+          active: delegateItem.videoActive
+          visible: false
+          layer.enabled: active
+
+          sourceComponent: Video {
+            anchors.fill: parent
+            source: "file://" + delegateItem.videoPath
+            fillMode: VideoOutput.PreserveAspectCrop
+            loops: MediaPlayer.Infinite
+            muted: true
+            Component.onCompleted: play()
+          }
+        }
+
+        Item {
+          id: flipContainer
+          anchors.fill: parent
+          transform: Rotation {
+            id: flipRotation
+            origin.x: flipContainer.width / 2
+            origin.y: flipContainer.height / 2
+            axis { x: 0; y: 1; z: 0 }
+            angle: delegateItem.flipped ? 180 : 0
+            Behavior on angle {
+              NumberAnimation { duration: 400; easing.type: Easing.InOutQuad }
+            }
+          }
+
+        Item {
+          id: frontFace
+          anchors.fill: parent
+          visible: flipRotation.angle < 90
 
         Canvas {
           id: shadowCanvas
@@ -984,76 +1108,47 @@ Scope {
           }
         }
 
-        // Video preview (plays after 300ms hover on current)
-        property string videoPath: model.videoFile ? model.videoFile : ""
-        property bool hasVideo: videoPath.length > 0
-        property bool videoActive: false
-
-        onIsCurrentChanged: {
-          if (isCurrent && hasVideo) {
-            videoDelayTimer.restart()
-          } else {
-            videoDelayTimer.stop()
-            videoActive = false
-          }
-        }
-
-        Timer {
-          id: videoDelayTimer
-          interval: 300
-          onTriggered: delegateItem.videoActive = true
-        }
-
-        Loader {
-          id: videoLoader
+        Item {
+          id: videoOverlay
           anchors.fill: parent
-          active: delegateItem.videoActive
-          property bool isPlaying: active && status === Loader.Ready
+          visible: sharedVideoLoader.active && sharedVideoLoader.status === Loader.Ready
 
-          sourceComponent: Item {
+          ShaderEffectSource {
             anchors.fill: parent
+            sourceItem: sharedVideoLoader
+            live: true
+          }
 
-            Video {
-              id: videoElement
-              anchors.fill: parent
-              source: "file://" + delegateItem.videoPath
-              fillMode: VideoOutput.PreserveAspectCrop
-              loops: MediaPlayer.Infinite
-              muted: true
-              Component.onCompleted: play()
-            }
-
-            layer.enabled: true
-            layer.smooth: true
-            layer.samples: 4
-            layer.effect: MultiEffect {
-              maskEnabled: true
-              maskSource: ShaderEffectSource {
-                sourceItem: Item {
-                  width: delegateItem.width
-                  height: delegateItem.height
-                  layer.enabled: true
-                  layer.smooth: true
-                  Shape {
-                    anchors.fill: parent
-                    antialiasing: true
-                    preferredRendererType: Shape.CurveRenderer
-                    ShapePath {
-                      fillColor: "white"
-                      strokeColor: "transparent"
-                      startX: wallpaperSelector.skewOffset
-                      startY: 0
-                      PathLine { x: delegateItem.width; y: 0 }
-                      PathLine { x: delegateItem.width - wallpaperSelector.skewOffset; y: delegateItem.height }
-                      PathLine { x: 0; y: delegateItem.height }
-                      PathLine { x: wallpaperSelector.skewOffset; y: 0 }
-                    }
+          layer.enabled: true
+          layer.smooth: true
+          layer.samples: 4
+          layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: ShaderEffectSource {
+              sourceItem: Item {
+                width: delegateItem.width
+                height: delegateItem.height
+                layer.enabled: true
+                layer.smooth: true
+                Shape {
+                  anchors.fill: parent
+                  antialiasing: true
+                  preferredRendererType: Shape.CurveRenderer
+                  ShapePath {
+                    fillColor: "white"
+                    strokeColor: "transparent"
+                    startX: wallpaperSelector.skewOffset
+                    startY: 0
+                    PathLine { x: delegateItem.width; y: 0 }
+                    PathLine { x: delegateItem.width - wallpaperSelector.skewOffset; y: delegateItem.height }
+                    PathLine { x: 0; y: delegateItem.height }
+                    PathLine { x: wallpaperSelector.skewOffset; y: 0 }
                   }
                 }
               }
-              maskThresholdMin: 0.3
-              maskSpreadAtMin: 0.3
             }
+            maskThresholdMin: 0.3
+            maskSpreadAtMin: 0.3
           }
         }
 
@@ -1111,48 +1206,32 @@ Scope {
           }
         }
 
-        Rectangle {
-          id: nameLabel
-          anchors.bottom: parent.bottom
-          anchors.bottomMargin: 40
-          anchors.horizontalCenter: parent.horizontalCenter
-          width: nameText.width + 24
-          height: 32
-          radius: 6
-          color: Qt.rgba(0, 0, 0, 0.75)
-          border.width: 1
-          border.color: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.5) : Qt.rgba(1, 1, 1, 0.2)
-          visible: delegateItem.isCurrent
-          opacity: delegateItem.isCurrent ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: 200 } }
-          Text {
-            id: nameText
-            anchors.centerIn: parent
-            text: model.name.replace(/\.[^/.]+$/, "").toUpperCase()
-            font.family: Style.fontFamily
-            font.pixelSize: 12
-            font.weight: Font.Bold
-            font.letterSpacing: 0.5
-            color: wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff"
-            elide: Text.ElideMiddle
-            maximumLineCount: 1
-            width: Math.min(implicitWidth, delegateItem.width - 60)
-          }
-        }
 
-        Rectangle {
+
+        Item {
           id: typeBadge
           anchors.bottom: parent.bottom
           anchors.bottomMargin: 8
           anchors.right: parent.right
           anchors.rightMargin: wallpaperSelector.skewOffset + 8
-          width: typeBadgeText.width + 8
+          property real skew: 4
+          width: typeBadgeText.implicitWidth + 16 + skew
           height: 16
-          radius: 4
-          color: Qt.rgba(0, 0, 0, 0.75)
-          border.width: 1
-          border.color: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.4) : Qt.rgba(1, 1, 1, 0.2)
           z: 10
+
+          Shape {
+            anchors.fill: parent
+            ShapePath {
+              fillColor: Qt.rgba(0, 0, 0, 0.75)
+              strokeColor: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.4) : Qt.rgba(1, 1, 1, 0.2)
+              strokeWidth: 1
+              startX: typeBadge.skew; startY: 0
+              PathLine { x: typeBadge.width; y: 0 }
+              PathLine { x: typeBadge.width - typeBadge.skew; y: typeBadge.height }
+              PathLine { x: 0; y: typeBadge.height }
+              PathLine { x: typeBadge.skew; y: 0 }
+            }
+          }
 
           Text {
             id: typeBadgeText
@@ -1188,14 +1267,342 @@ Scope {
           }
         }
 
-        // Mouse interaction (hover, click to apply, right-click context menu)
+        }
+
+        Item {
+          id: backFace
+          anchors.fill: parent
+          visible: flipRotation.angle >= 90
+          transform: Rotation {
+            origin.x: backFace.width / 2
+            origin.y: backFace.height / 2
+            axis { x: 0; y: 1; z: 0 }
+            angle: 180
+          }
+
+          Item {
+            id: backClip
+            anchors.fill: parent
+
+            Rectangle {
+              anchors.fill: parent
+              color: wallpaperSelector.colors
+                ? wallpaperSelector.colors.surfaceContainer
+                : "#1a1a2e"
+            }
+
+            ShaderEffectSource {
+              anchors.fill: parent
+              sourceItem: sharedVideoLoader
+              live: true
+              visible: delegateItem.videoActive && delegateItem.flipped && sharedVideoLoader.status === Loader.Ready
+              opacity: 0.25
+            }
+
+            Image {
+              anchors.fill: parent
+              source: "file://" + model.thumb
+              fillMode: Image.PreserveAspectCrop
+              opacity: 0.12
+              visible: !(delegateItem.videoActive && delegateItem.flipped)
+            }
+
+            // Action buttons
+            Column {
+              anchors.centerIn: parent
+              spacing: 14
+              width: Math.min(parent.width * 0.45, 260)
+
+              Text {
+                width: parent.parent.width - wallpaperSelector.skewOffset * 2 - 20
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: model.name.replace(/\.[^/.]+$/, "").toUpperCase()
+                color: wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff"
+                font.family: Style.fontFamily
+                font.pixelSize: 14
+                font.weight: Font.Bold
+                font.letterSpacing: 1
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+              }
+
+              Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.1) }
+
+              Item {
+                width: parent.width
+                height: 36
+
+                Text {
+                  id: favLabel
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: "FAVOURITE"
+                  color: wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff"
+                  font.family: Style.fontFamily
+                  font.pixelSize: 12
+                  font.weight: Font.Medium
+                  font.letterSpacing: 0.5
+                }
+
+                Item {
+                  id: favToggle
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: 48; height: 24
+
+                  property bool checked: false
+
+                  Component.onCompleted: {
+                    var key = (model.weId || "") !== "" ? model.weId : model.name
+                    checked = !!service.favouritesDb[key]
+                  }
+
+                  Connections {
+                    target: delegateItem
+                    function onFlippedChanged() {
+                      if (delegateItem.flipped) {
+                        var key = (model.weId || "") !== "" ? model.weId : model.name
+                        favToggle.checked = !!service.favouritesDb[key]
+                      }
+                    }
+                  }
+
+                  Canvas {
+                    id: favToggleBg
+                    anchors.fill: parent
+                    property bool isOn: favToggle.checked
+                    property color fillColor: isOn
+                      ? (wallpaperSelector.colors ? wallpaperSelector.colors.primary : "#4fc3f7")
+                      : Qt.rgba(1, 1, 1, 0.15)
+                    onFillColorChanged: requestPaint()
+                    onIsOnChanged: requestPaint()
+                    onPaint: {
+                      var ctx = getContext("2d")
+                      ctx.clearRect(0, 0, width, height)
+                      var sk = 8
+                      ctx.fillStyle = fillColor
+                      ctx.beginPath()
+                      ctx.moveTo(sk, 0)
+                      ctx.lineTo(width, 0)
+                      ctx.lineTo(width - sk, height)
+                      ctx.lineTo(0, height)
+                      ctx.closePath()
+                      ctx.fill()
+                    }
+                  }
+
+                  Canvas {
+                    id: favToggleKnob
+                    width: 22; height: 18; y: 3
+                    x: favToggle.checked ? parent.width - width - 4 : 4
+                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    property color knobColor: favToggle.checked
+                      ? (wallpaperSelector.colors ? wallpaperSelector.colors.primaryText : "#000")
+                      : (wallpaperSelector.colors ? wallpaperSelector.colors.surfaceText : "#fff")
+                    onKnobColorChanged: requestPaint()
+                    onPaint: {
+                      var ctx = getContext("2d")
+                      ctx.clearRect(0, 0, width, height)
+                      var sk = 5
+                      ctx.fillStyle = knobColor
+                      ctx.beginPath()
+                      ctx.moveTo(sk, 0)
+                      ctx.lineTo(width, 0)
+                      ctx.lineTo(width - sk, height)
+                      ctx.lineTo(0, height)
+                      ctx.closePath()
+                      ctx.fill()
+                    }
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                      favToggle.checked = !favToggle.checked
+                      service.toggleFavourite(model.name, model.weId || "")
+                    }
+                  }
+                }
+              }
+
+              Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.1) }
+
+              Rectangle {
+                width: parent.width; height: 42; radius: 8
+                color: backViewMouse.containsMouse
+                  ? Qt.rgba(wallpaperSelector.colors ? wallpaperSelector.colors.primary.r : 0.5,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.g : 0.5,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.b : 0.5, 0.25)
+                  : Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: backViewMouse.containsMouse
+                  ? Qt.rgba(wallpaperSelector.colors ? wallpaperSelector.colors.primary.r : 1,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.g : 1,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.b : 1, 0.4)
+                  : Qt.rgba(1, 1, 1, 0.08)
+                Behavior on color { ColorAnimation { duration: 100 } }
+                Text {
+                  anchors.centerIn: parent
+                  text: "VIEW FILE"
+                  color: backViewMouse.containsMouse
+                    ? (wallpaperSelector.colors ? wallpaperSelector.colors.primary : "#ffffff")
+                    : (wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff")
+                  font.family: Style.fontFamily; font.pixelSize: 12
+                  font.weight: Font.Medium; font.letterSpacing: 0.5
+                  Behavior on color { ColorAnimation { duration: 100 } }
+                }
+                MouseArea {
+                  id: backViewMouse
+                  anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                  onClicked: {
+                    var dir = model.path.substring(0, model.path.lastIndexOf("/"))
+                    Qt.openUrlExternally("file://" + dir)
+                    delegateItem.flipped = false
+                  }
+                }
+              }
+
+              // Delete
+              Rectangle {
+                width: parent.width; height: 42; radius: 8
+                color: backDeleteMouse.containsMouse
+                  ? Qt.rgba(1, 0.3, 0.3, 0.25) : Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: backDeleteMouse.containsMouse
+                  ? Qt.rgba(1, 0.3, 0.3, 0.4) : Qt.rgba(1, 1, 1, 0.08)
+                Behavior on color { ColorAnimation { duration: 100 } }
+                Text {
+                  anchors.centerIn: parent
+                  text: "DELETE"
+                  color: backDeleteMouse.containsMouse ? "#ff6b6b"
+                    : (wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff")
+                  font.family: Style.fontFamily; font.pixelSize: 12
+                  font.weight: Font.Medium; font.letterSpacing: 0.5
+                  Behavior on color { ColorAnimation { duration: 100 } }
+                }
+                MouseArea {
+                  id: backDeleteMouse
+                  anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                  onClicked: {
+                    var idx = index
+                    sliceListView.animateRemoval = true
+                    service.deleteWallpaperItem(model.type, model.name, model.weId || "")
+                    var newIdx = Math.min(idx, service.filteredModel.count - 1)
+                    // Force ListView to re-evaluate by toggling index
+                    sliceListView.currentIndex = -1
+                    sliceListView.currentIndex = newIdx
+                    sliceListView.positionViewAtIndex(newIdx, ListView.Center)
+                    removeAnimResetTimer.restart()
+                  }
+                }
+              }
+
+              // View on Steam (WE only)
+              Rectangle {
+                visible: model.type === "we"
+                width: parent.width; height: 42; radius: 8
+                color: backSteamMouse.containsMouse
+                  ? Qt.rgba(wallpaperSelector.colors ? wallpaperSelector.colors.primary.r : 0.5,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.g : 0.5,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.b : 0.5, 0.25)
+                  : Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: backSteamMouse.containsMouse
+                  ? Qt.rgba(wallpaperSelector.colors ? wallpaperSelector.colors.primary.r : 1,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.g : 1,
+                             wallpaperSelector.colors ? wallpaperSelector.colors.primary.b : 1, 0.4)
+                  : Qt.rgba(1, 1, 1, 0.08)
+                Behavior on color { ColorAnimation { duration: 100 } }
+                Text {
+                  anchors.centerIn: parent
+                  text: "VIEW ON STEAM"
+                  color: backSteamMouse.containsMouse
+                    ? (wallpaperSelector.colors ? wallpaperSelector.colors.primary : "#ffffff")
+                    : (wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff")
+                  font.family: Style.fontFamily; font.pixelSize: 12
+                  font.weight: Font.Medium; font.letterSpacing: 0.5
+                  Behavior on color { ColorAnimation { duration: 100 } }
+                }
+                MouseArea {
+                  id: backSteamMouse
+                  anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                  onClicked: {
+                    service.openSteamPage(model.weId || "")
+                    delegateItem.flipped = false
+                  }
+                }
+              }
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              z: -1
+              onClicked: delegateItem.flipped = false
+            }
+
+            layer.enabled: true
+            layer.smooth: true
+            layer.samples: 4
+            layer.effect: MultiEffect {
+              maskEnabled: true
+              maskSource: ShaderEffectSource {
+                sourceItem: Item {
+                  width: backClip.width
+                  height: backClip.height
+                  layer.enabled: true
+                  layer.smooth: true
+                  layer.samples: 8
+                  Shape {
+                    anchors.fill: parent
+                    antialiasing: true
+                    preferredRendererType: Shape.CurveRenderer
+                    ShapePath {
+                      fillColor: "white"
+                      strokeColor: "transparent"
+                      startX: wallpaperSelector.skewOffset
+                      startY: 0
+                      PathLine { x: delegateItem.width; y: 0 }
+                      PathLine { x: delegateItem.width - wallpaperSelector.skewOffset; y: delegateItem.height }
+                      PathLine { x: 0; y: delegateItem.height }
+                      PathLine { x: wallpaperSelector.skewOffset; y: 0 }
+                    }
+                  }
+                }
+              }
+              maskThresholdMin: 0.3
+              maskSpreadAtMin: 0.3
+            }
+          }
+
+          Shape {
+            anchors.fill: parent
+            antialiasing: true
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+              fillColor: "transparent"
+              strokeColor: wallpaperSelector.colors ? wallpaperSelector.colors.primary : "#8BC34A"
+              strokeWidth: 2
+              startX: wallpaperSelector.skewOffset
+              startY: 0
+              PathLine { x: delegateItem.width; y: 0 }
+              PathLine { x: delegateItem.width - wallpaperSelector.skewOffset; y: delegateItem.height }
+              PathLine { x: 0; y: delegateItem.height }
+              PathLine { x: wallpaperSelector.skewOffset; y: 0 }
+            }
+          }
+        }
+
+        }
+
         MouseArea {
           id: itemMouseArea
           anchors.fill: parent
-          hoverEnabled: true
-          acceptedButtons: Qt.LeftButton | Qt.RightButton
-          cursorShape: Qt.PointingHandCursor
+          hoverEnabled: !delegateItem.flipped
+          acceptedButtons: delegateItem.flipped ? Qt.RightButton : (Qt.LeftButton | Qt.RightButton)
+          cursorShape: delegateItem.flipped ? Qt.ArrowCursor : Qt.PointingHandCursor
           onPositionChanged: function(mouse) {
+            if (delegateItem.flipped) return
             var globalPos = mapToItem(sliceListView, mouse.x, mouse.y)
             var dx = Math.abs(globalPos.x - sliceListView.lastMouseX)
             var dy = Math.abs(globalPos.y - sliceListView.lastMouseY)
@@ -1208,16 +1615,9 @@ Scope {
           }
           onClicked: function(mouse) {
             if (mouse.button === Qt.RightButton) {
-              var pos = mapToItem(selectorPanel.contentItem, mouse.x, mouse.y)
-              wallpaperSelector.contextMenuName = model.name
-              wallpaperSelector.contextMenuType = model.type
-              wallpaperSelector.contextMenuWeId = model.weId || ""
-              wallpaperSelector.contextMenuPath = model.path || ""
-              wallpaperSelector.contextMenuX = pos.x
-              wallpaperSelector.contextMenuY = pos.y
-              wallpaperSelector.contextMenuVisible = true
-            } else {
-
+              sliceListView.currentIndex = index
+              delegateItem.flipped = !delegateItem.flipped
+            } else if (!delegateItem.flipped) {
               if (delegateItem.isCurrent) {
                 if (model.type === "we") {
                   service.applyWE(model.weId)
@@ -1235,142 +1635,7 @@ Scope {
     }
     }
 
-    // Dismiss overlay (behind context menu, above everything else)
-    MouseArea {
-      anchors.fill: parent
-      visible: wallpaperSelector.contextMenuVisible
-      z: 199
-      onClicked: wallpaperSelector.contextMenuVisible = false
-    }
 
-    // Right-click context menu (delete, view on Steam)
-    Rectangle {
-      id: contextMenu
-      visible: wallpaperSelector.contextMenuVisible
-      x: Math.min(wallpaperSelector.contextMenuX, parent.width - width - 10)
-      y: Math.min(wallpaperSelector.contextMenuY, parent.height - height - 10)
-      width: 220
-      height: contextMenuColumn.height + 16
-      radius: 12
-      color: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.surfaceContainer.r, wallpaperSelector.colors.surfaceContainer.g, wallpaperSelector.colors.surfaceContainer.b, 0.95) : "#2a2a2a"
-      border.width: 1
-      border.color: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.3) : Qt.rgba(1, 1, 1, 0.15)
-      z: 200
-
-      MouseArea {
-        anchors.fill: parent
-      }
-
-      Column {
-        id: contextMenuColumn
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.margins: 8
-        spacing: 4
-
-        Text {
-          width: parent.width
-          text: wallpaperSelector.contextMenuName.toUpperCase()
-          color: wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff"
-          font.family: Style.fontFamily
-          font.pixelSize: 13
-          font.weight: Font.Bold
-          font.letterSpacing: 0.5
-          elide: Text.ElideMiddle
-          horizontalAlignment: Text.AlignLeft
-          leftPadding: 8
-          topPadding: 4
-          bottomPadding: 8
-        }
-
-        Rectangle {
-          width: parent.width; height: 1
-          color: Qt.rgba(1, 1, 1, 0.1)
-        }
-
-        Rectangle {
-          width: parent.width; height: 36
-          color: deleteHover.containsMouse ? Qt.rgba(wallpaperSelector.colors ? wallpaperSelector.colors.primary.r : 1, wallpaperSelector.colors ? wallpaperSelector.colors.primary.g : 0.3, wallpaperSelector.colors ? wallpaperSelector.colors.primary.b : 0.3, 0.2) : "transparent"
-          border.width: deleteHover.containsMouse ? 1 : 0
-          border.color: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.4) : Qt.rgba(1, 1, 1, 0.2)
-          Behavior on color { ColorAnimation { duration: 100 } }
-
-          Row {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            spacing: 10
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: "🗑"; font.pixelSize: 14
-            }
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: "DELETE LOCALLY"
-              color: wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff"
-              font.family: Style.fontFamily
-              font.pixelSize: 12
-              font.weight: Font.Medium
-              font.letterSpacing: 0.5
-            }
-          }
-
-          MouseArea {
-            id: deleteHover
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              service.deleteWallpaperItem(
-                wallpaperSelector.contextMenuType,
-                wallpaperSelector.contextMenuName,
-                wallpaperSelector.contextMenuWeId
-              )
-              wallpaperSelector.contextMenuVisible = false
-            }
-          }
-        }
-
-        Rectangle {
-          visible: wallpaperSelector.contextMenuType === "we"
-          width: parent.width; height: 36
-          color: unsubHover.containsMouse ? Qt.rgba(wallpaperSelector.colors ? wallpaperSelector.colors.primary.r : 1, wallpaperSelector.colors ? wallpaperSelector.colors.primary.g : 0.5, wallpaperSelector.colors ? wallpaperSelector.colors.primary.b : 0, 0.2) : "transparent"
-          border.width: unsubHover.containsMouse ? 1 : 0
-          border.color: wallpaperSelector.colors ? Qt.rgba(wallpaperSelector.colors.primary.r, wallpaperSelector.colors.primary.g, wallpaperSelector.colors.primary.b, 0.4) : Qt.rgba(1, 1, 1, 0.2)
-          Behavior on color { ColorAnimation { duration: 100 } }
-
-          Row {
-            anchors.fill: parent
-            anchors.leftMargin: 8
-            spacing: 10
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: "☁"; font.pixelSize: 14
-            }
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: "VIEW ON STEAM"
-              color: wallpaperSelector.colors ? wallpaperSelector.colors.tertiary : "#8bceff"
-              font.family: Style.fontFamily
-              font.pixelSize: 12
-              font.weight: Font.Medium
-              font.letterSpacing: 0.5
-            }
-          }
-
-          MouseArea {
-            id: unsubHover
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              service.openSteamPage(wallpaperSelector.contextMenuWeId)
-              wallpaperSelector.contextMenuVisible = false
-            }
-          }
-        }
-      }
-    }
 
   }
 }

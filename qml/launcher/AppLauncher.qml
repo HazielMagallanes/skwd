@@ -252,6 +252,7 @@ Scope {
                   visible: sourceMouseArea.containsMouse
                   text: modelData.label
                   delay: 500
+                  contentWidth: implicitContentWidth
                 }
               }
             }
