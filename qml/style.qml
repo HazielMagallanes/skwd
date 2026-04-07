@@ -7,12 +7,12 @@ QtObject {
     id: style
 
     // Font families
-    readonly property string fontFamily: "Roboto Condensed"
+    readonly property string fontFamily: "JetBrainsMono Nerd Font"
     readonly property string fontFamilyHeading: "Roboto"
     readonly property string fontFamilyMono: "monospace"
     readonly property string fontFamilyCode: "Roboto Mono"
     readonly property string fontFamilyIcons: "Material Design Icons Desktop"
-    readonly property string fontFamilyNerdIcons: "Symbols Nerd Font"
+    readonly property string fontFamilyNerdIcons: "JetBrainsMono Nerd Font"
 
 
     // Font sizes (px)

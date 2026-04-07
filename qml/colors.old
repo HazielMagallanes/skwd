@@ -1,0 +1,61 @@
+import QtQuick
+
+QtObject {
+    id: colors
+
+    // --- YOUR CUSTOM WAYBAR COLORS ---
+    property color bgMain: Qt.rgba(20/255, 20/255, 20/255, 0.4)
+    property color bgModule: Qt.rgba(45/255, 45/255, 45/255, 0.25)
+    property color wsBgActive: Qt.rgba(136/255, 192/255, 208/255, 0.15)
+    
+    property color wsTextActive: "#88c0d0"
+    property color wsTextInactive: "#d8dee9"
+    property color network: "#88c0d0"
+    property color clock: "#a3be8c"
+    property color audio: "#ebcb8b"
+    property color memory: "#77b950"
+    property color tempCpu: "#d08770"
+    property color tempGpu: "#bf616a"
+
+    // --- CATPPUCCIN MOCHA (Mapped to SKWD's custom schema) ---
+    // Primary
+    property color primary: '#ffffff'
+    property color primaryText: "#11111b"
+    property color primaryContainer: "#89b4fa"
+    property color primaryContainerText: "#11111b"
+    property color primaryForeground: "#11111b"
+
+    // Secondary
+    property color secondary: "#cba6f7"
+    property color secondaryText: "#11111b"
+    property color secondaryContainer: "#cba6f7"
+    property color secondaryContainerText: "#11111b"
+
+    // Tertiary
+    property color tertiary: '#89b4fa'
+    property color tertiaryText: "#11111b"
+    property color tertiaryContainer: "#f5c2e7"
+    property color tertiaryContainerText: "#11111b"
+
+    // Background & Surface
+    property color background: "#1e1e2e"
+    property color backgroundText: "#cdd6f4"
+    property color surface: "#1e1e2e"
+    property color surfaceText: "#cdd6f4"
+    property color surfaceVariant: "#313244"
+    property color surfaceVariantText: "#a6adc8"
+    property color surfaceContainer: "#313244"
+
+    // Error
+    property color error: "#f38ba8"
+    property color errorText: "#11111b"
+    property color errorContainer: "#f38ba8"
+    property color errorContainerText: "#11111b"
+
+    // Utility
+    property color outline: "#585b70"
+    property color shadow: "#11111b"
+    property color inverseSurface: "#cdd6f4"
+    property color inverseSurfaceText: "#1e1e2e"
+    property color inversePrimary: "#89b4fa"
+}

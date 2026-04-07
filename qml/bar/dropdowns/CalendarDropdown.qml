@@ -12,24 +12,18 @@ Rectangle {
   property bool active: false
   readonly property real animatedHeight: _animatedHeight
 
-  property real _targetHeight: 0
+  // Expose the maximum height for the Wayland surface calculation
+  property real fullHeight: clockColumn.implicitHeight + 24
+  property real _targetHeight: active ? fullHeight : 0
+  
   property real _animatedHeight: _targetHeight
   Behavior on _animatedHeight {
-    NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
   }
 
   height: _animatedHeight
   visible: _animatedHeight > 0
   color: Qt.rgba(root.colors.surface.r, root.colors.surface.g, root.colors.surface.b, 0.88)
-
-  // Show/hide
-  onActiveChanged: {
-    if (active) {
-      _targetHeight = clockColumn.implicitHeight + 24
-    } else {
-      _targetHeight = 0
-    }
-  }
 
   // Bottom accent line
   Rectangle {
@@ -57,21 +51,12 @@ Rectangle {
 
     property int monthOffset: 0
 
-    onImplicitHeightChanged: {
-      if (root.active) {
-        root._targetHeight = implicitHeight + 24
-      }
-    }
-
-    opacity: root.active && root._animatedHeight > 100 ? 1 : 0
+    opacity: root.active && root._animatedHeight > (clockColumn.implicitHeight * 0.5) ? 1 : 0
     transform: Translate {
-      y: root.active && root._animatedHeight > 100 ? 0 : -15
+      y: root.active && root._animatedHeight > (clockColumn.implicitHeight * 0.5) ? 0 : -15
     }
     Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-
-
 
     // Month navigation buttons
     Row {
@@ -119,7 +104,6 @@ Rectangle {
       }
     }
 
-
     // Day-of-week header row
     Row {
       spacing: 2
@@ -138,7 +122,6 @@ Rectangle {
         }
       }
     }
-
 
     // Calendar day grid (6 weeks x 7 days)
     Grid {
@@ -194,13 +177,10 @@ Rectangle {
               ctx.lineTo(0, height)
               ctx.closePath()
 
-              if (isToday) {
-                ctx.fillStyle = Qt.rgba(root.colors.primary.r, root.colors.primary.g, root.colors.primary.b, 0.3)
-              } else if (dayMouseArea.containsMouse) {
-                ctx.fillStyle = Qt.rgba(root.colors.primary.r, root.colors.primary.g, root.colors.primary.b, 0.15)
-              } else {
-                ctx.fillStyle = Qt.rgba(root.colors.surface.r, root.colors.surface.g, root.colors.surface.b, 0.3)
-              }
+              if (isToday) ctx.fillStyle = Qt.rgba(root.colors.primary.r, root.colors.primary.g, root.colors.primary.b, 0.3)
+              else if (dayMouseArea.containsMouse) ctx.fillStyle = Qt.rgba(root.colors.primary.r, root.colors.primary.g, root.colors.primary.b, 0.15)
+              else ctx.fillStyle = Qt.rgba(root.colors.surface.r, root.colors.surface.g, root.colors.surface.b, 0.3)
+              
               ctx.fill()
 
               ctx.strokeStyle = isToday ? root.colors.primary : Qt.rgba(root.colors.primary.r, root.colors.primary.g, root.colors.primary.b, 0.3)
@@ -243,7 +223,6 @@ Rectangle {
             enabled: isValidDay
             onEntered: if (isValidDay) dayBg.requestPaint()
             onExited: if (isValidDay) dayBg.requestPaint()
-            onClicked: {}
           }
         }
       }

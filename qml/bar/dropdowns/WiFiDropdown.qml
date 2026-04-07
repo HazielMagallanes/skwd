@@ -15,7 +15,10 @@ Rectangle {
 
   readonly property real animatedHeight: _animatedHeight
 
-  property real _targetHeight: 0
+  // Wayland surface fix applied here
+  property real fullHeight: wifiColumn.implicitHeight + 24
+  property real _targetHeight: active ? fullHeight : 0
+  
   property real _animatedHeight: _targetHeight
   Behavior on _animatedHeight {
     NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
@@ -28,11 +31,8 @@ Rectangle {
   // Expand/collapse and scan trigger
   onActiveChanged: {
     if (active) {
-      _targetHeight = wifiColumn.implicitHeight + 24
       wifiColumn.networkList = []
       wifiScanProcess.running = true
-    } else {
-      _targetHeight = 0
     }
   }
 
@@ -69,12 +69,6 @@ Rectangle {
     }
     Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-    onImplicitHeightChanged: {
-      if (root.active) {
-        root._targetHeight = implicitHeight + 24
-      }
-    }
 
     // WiFi network scanner
     Process {
@@ -226,11 +220,9 @@ Rectangle {
         MouseArea {
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
-          onClicked: {
-            if (!isConnected) {
-              wifiConnectProcess.targetSsid = modelData.ssid
-              wifiConnectProcess.running = true
-            }
+          onClicked: if (!isConnected) {
+            wifiConnectProcess.targetSsid = modelData.ssid
+            wifiConnectProcess.running = true
           }
         }
       }

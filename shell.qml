@@ -122,6 +122,7 @@ ShellRoot {
   Colors {
     id: colors
   }
+  property var globalColors: colors
 
 
   // MPRIS music player detection - uses preferred player if active
@@ -384,11 +385,10 @@ ShellRoot {
 
   // Top bar instantiation
   property string barTheme: "minimal"
-
   TopBar {
-    id: minimalBar
+    id: minimalBarPrimary
     visible: Config.barEnabled && root.barTheme === "minimal" && !(root.lockscreenInstance && root.lockscreenInstance.showing)
-    colors: colors
+    colors: root.globalColors
     clock: clock
     barVisible: root.barVisible
     activePlayer: root.activePlayer
@@ -401,5 +401,24 @@ ShellRoot {
     weatherTemp: root.weatherTemp
     weatherCity: root.weatherCity
     weatherForecast: root.weatherForecast
+    barScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
+  }
+  TopBar {
+    id: minimalBarSecondary
+    visible: Config.barEnabled && root.barTheme === "minimal" && !(root.lockscreenInstance && root.lockscreenInstance.showing) && Quickshell.screens.length > 1
+    colors: root.globalColors
+    clock: clock
+    barVisible: root.barVisible
+    activePlayer: root.activePlayer
+    cpuUsage: root.cpuUsage
+    memUsage: root.memUsage
+    gpuUsage: root.gpuUsage
+    cpuTemp: root.cpuTemp
+    gpuTemp: root.gpuTemp
+    weatherDesc: root.weatherDesc
+    weatherTemp: root.weatherTemp
+    weatherCity: root.weatherCity
+    weatherForecast: root.weatherForecast
+    barScreen: Quickshell.screens.length > 1 ? Quickshell.screens[1] : null
   }
 }

@@ -162,8 +162,12 @@ def analyze_wallpaper(thumb_path: Path) -> tuple[tuple[int, int], list[str]]:
 
 # Main processing loop with trigger hash check and periodic saves
 def main():
-        print("No new wallpapers to analyze (hash unchanged)")
-        return
+    trigger_hash = None
+    if TRIGGER_FILE.exists():
+        trigger_hash = TRIGGER_FILE.read_text().strip()
+        if LAST_RUN_FILE.exists() and LAST_RUN_FILE.read_text().strip() == trigger_hash:
+            print("No new wallpapers to analyze (hash unchanged)")
+            return
 
     colors_db = {}
     if COLORS_FILE.exists() and COLORS_FILE.stat().st_size > 0:

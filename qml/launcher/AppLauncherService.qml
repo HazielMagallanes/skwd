@@ -29,6 +29,30 @@ QtObject {
   // Signals to view for scroll management
   signal modelUpdated()
 
+  // Delete from launcher
+  property var _hideProcess: Process { command: ["true"] }
+
+  function hideApp(appName) {
+    // Instantly hide the app from the current session for immediate feedback
+    for (var i = 0; i < appModel.count; i++) {
+      if (appModel.get(i).name === appName) {
+        appModel.setProperty(i, "hidden", true)
+        break
+      }
+    }
+    updateFilteredModel()
+
+    // Use jq to append the hidden state to apps.json permanently
+    var file = service.configDir + "/data/apps.json"
+    var cmd = "mkdir -p $(dirname '" + file + "') && " +
+              "[ ! -f '" + file + "' ] && echo '{}' > '" + file + "'; " +
+              "jq '.\"" + appName + "\" += {\"hidden\": true}' '" + file + "' > '" + file + ".tmp' && " +
+              "mv '" + file + ".tmp' '" + file + "'"
+              
+    _hideProcess.command = ["bash", "-c", cmd]
+    _hideProcess.running = true
+  }
+
   // Frequency-based search ranking
   property string freqCachePath: cacheDir + "/app-launcher/freq.json"
   property var freqData: ({})
@@ -52,15 +76,23 @@ QtObject {
 
   function recordSelection(appName) {
     var query = searchText.toLowerCase().trim()
-    if (query === "") return
-
     var fd = freqData
-    for (var len = 2; len <= query.length; len++) {
-      var prefix = query.substring(0, len)
-      if (!fd[prefix]) fd[prefix] = {}
-      if (!fd[prefix][appName]) fd[prefix][appName] = 0
-      fd[prefix][appName] += 1
+    
+    // Track Global Frequency
+    if (!fd["_all"]) fd["_all"] = {}
+    if (!fd["_all"][appName]) fd["_all"][appName] = 0
+    fd["_all"][appName] += 1
+
+    // Track Search-Specific Frequency
+    if (query !== "") {
+      for (var len = 2; len <= query.length; len++) {
+        var prefix = query.substring(0, len)
+        if (!fd[prefix]) fd[prefix] = {}
+        if (!fd[prefix][appName]) fd[prefix][appName] = 0
+        fd[prefix][appName] += 1
+      }
     }
+    
     freqData = fd
     saveFreqData()
   }
@@ -105,15 +137,15 @@ QtObject {
       })
     }
 
-    if (query !== "") {
-      var freqMap = freqData[query] || {}
-      results.sort(function(a, b) {
-        var freqA = freqMap[a.name] || 0
-        var freqB = freqMap[b.name] || 0
-        if (freqA !== freqB) return freqB - freqA
-        return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-      })
-    }
+    // Sort results by frequency (uses search frequency if searching, global frequency otherwise)
+    var freqMap = query !== "" ? (freqData[query] || {}) : (freqData["_all"] || {})
+    
+    results.sort(function(a, b) {
+      var freqA = freqMap[a.name] || 0
+      var freqB = freqMap[b.name] || 0
+      if (freqA !== freqB) return freqB - freqA
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+    })
 
     if (results.length === filteredModel.count) {
       var same = true

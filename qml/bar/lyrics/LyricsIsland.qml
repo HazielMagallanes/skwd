@@ -118,9 +118,9 @@ Item {
       width: parent.width
       y: lyricContainer.centerY
       text: {
-        if (service.lyricState === "searching") return "RETRIEVING LYRICS..."
-        if (service.lyricState === "nolyrics") return "NO LYRICS :("
-        return ""
+        if (service.lyricState === "searching") return "Cargando letra..."
+        if (service.lyricState === "nolyrics") return "No hay letra :("
+        return "..."
       }
       font.pixelSize: 12
       font.weight: Font.Medium

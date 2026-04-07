@@ -16,7 +16,18 @@ Scope {
   property var colors
   property bool showing: false
 
-  property string mainMonitor: Config.mainMonitor
+  // Safe fallback to prevent fatal Wayland startup crashes
+  property string activeMonitor: Quickshell.screens.length > 0 ? Quickshell.screens[0].name : ""
+
+  Process {
+    id: activeMonProcess
+    command: ["sh", "-c", "hyprctl activeworkspace -j | jq -r .monitor"]
+    stdout: SplitParser {
+      onRead: data => {
+        if (data.trim() !== "null") appLauncher.activeMonitor = data.trim()
+      }
+    }
+  }
 
   // Service handles all data, search, caching, and launch logic
   AppLauncherService {
@@ -43,6 +54,7 @@ Scope {
   // Show/hide lifecycle
   onShowingChanged: {
     if (showing) {
+      activeMonProcess.running = true // Fetch active monitor on open
       service.searchText = ""
       searchInput.text = ""
       service.loadFreqData()
@@ -97,8 +109,8 @@ Scope {
   PanelWindow {
     id: launcherPanel
 
-    screen: Quickshell.screens.find(s => s.name === appLauncher.mainMonitor) ?? Quickshell.screens[0]
-
+    // Safe array access
+    screen: Quickshell.screens.find(s => s.name === appLauncher.activeMonitor) ?? (Quickshell.screens.length > 0 ? Quickshell.screens[0] : null)
     anchors {
       top: true
       bottom: true
@@ -436,6 +448,15 @@ Scope {
           event.accepted = true
           return
         }
+        
+        if (event.key === Qt.Key_Delete) {
+          if (sliceListView.currentIndex >= 0 && sliceListView.currentIndex < service.filteredModel.count) {
+            var app = service.filteredModel.get(sliceListView.currentIndex)
+            service.hideApp(app.name)
+          }
+          event.accepted = true
+          return
+        }
 
 
         if (event.text && event.text.length > 0 && !event.modifiers) {
@@ -566,11 +587,11 @@ Scope {
         }
 
 
-        // Image container (background, thumbnail, parallelogram mask)
+       // Image container (background, thumbnail, parallelogram mask)
         Item {
           id: imageContainer
           anchors.fill: parent
-
+          clip: true
 
           Image {
             id: bgImage
@@ -584,7 +605,6 @@ Scope {
             sourceSize.height: appLauncher.sliceHeight
           }
 
-
           Rectangle {
             anchors.fill: parent
             gradient: Gradient {
@@ -596,28 +616,28 @@ Scope {
 
           Text {
             anchors.centerIn: parent
-            text: model.customIcon || ""
+            text: model.customIcon || ""
             font.family: Style.fontFamilyIcons
             font.pixelSize: 48
             color: appLauncher.colors ? Qt.rgba(appLauncher.colors.primary.r, appLauncher.colors.primary.g, appLauncher.colors.primary.b, 0.7) : Qt.rgba(1, 1, 1, 0.5)
-            visible: model.customIcon !== "" && !bgImage.visible
+            visible: !bgImage.visible && (!thumbImage.visible || thumbImage.status !== Image.Ready)
           }
-
 
           Image {
             id: thumbImage
             anchors.fill: parent
-            source: model.thumb ? "file://" + model.thumb : ""
-            fillMode: model.source === "steam" ? Image.PreserveAspectCrop : Image.Pad
+            anchors.margins: 20 
+            source: model.thumb ? "file://" + model.thumb : (model.iconPath ? "file://" + model.iconPath : "")
+            fillMode: Image.PreserveAspectFit 
+            
             horizontalAlignment: Image.AlignHCenter
             verticalAlignment: Image.AlignVCenter
             smooth: true
             asynchronous: true
             sourceSize.width: appLauncher.expandedWidth
             sourceSize.height: appLauncher.sliceHeight
-            visible: model.thumb !== "" && !bgImage.visible
+            visible: status === Image.Ready && !bgImage.visible
           }
-
 
           Rectangle {
             anchors.fill: parent
@@ -625,40 +645,33 @@ Scope {
             Behavior on color { ColorAnimation { duration: 200 } }
           }
 
-          layer.enabled: true
-          layer.smooth: true
-          layer.samples: 4
-          layer.effect: MultiEffect {
-            maskEnabled: true
-            maskSource: ShaderEffectSource {
-              sourceItem: Item {
-                width: imageContainer.width
-                height: imageContainer.height
-                layer.enabled: true
-                layer.smooth: true
-                layer.samples: 8
-                Shape {
-                  anchors.fill: parent
-                  antialiasing: true
-                  preferredRendererType: Shape.CurveRenderer
-                  ShapePath {
-                    fillColor: "white"
-                    strokeColor: "transparent"
-                    startX: appLauncher.skewOffset
-                    startY: 0
-                    PathLine { x: delegateItem.width; y: 0 }
-                    PathLine { x: delegateItem.width - appLauncher.skewOffset; y: delegateItem.height }
-                    PathLine { x: 0; y: delegateItem.height }
-                    PathLine { x: appLauncher.skewOffset; y: 0 }
-                  }
-                }
-              }
+          // Native masking via Shape overlay to cut the parallelogram edges
+          Shape {
+            anchors.fill: parent
+            antialiasing: true
+            preferredRendererType: Shape.CurveRenderer
+            
+            // Left triangle cutout
+            ShapePath {
+              fillColor: appLauncher.colors ? Qt.rgba(appLauncher.colors.surfaceContainer.r, appLauncher.colors.surfaceContainer.g, appLauncher.colors.surfaceContainer.b, 1) : "#1a1c2e"
+              strokeColor: "transparent"
+              startX: 0; startY: 0
+              PathLine { x: appLauncher.skewOffset; y: 0 }
+              PathLine { x: 0; y: delegateItem.height }
+              PathLine { x: 0; y: 0 }
             }
-            maskThresholdMin: 0.3
-            maskSpreadAtMin: 0.3
+            
+            // Right triangle cutout
+            ShapePath {
+              fillColor: appLauncher.colors ? Qt.rgba(appLauncher.colors.surfaceContainer.r, appLauncher.colors.surfaceContainer.g, appLauncher.colors.surfaceContainer.b, 1) : "#1a1c2e"
+              strokeColor: "transparent"
+              startX: delegateItem.width; startY: 0
+              PathLine { x: delegateItem.width; y: delegateItem.height }
+              PathLine { x: delegateItem.width - appLauncher.skewOffset; y: delegateItem.height }
+              PathLine { x: delegateItem.width; y: 0 }
+            }
           }
         }
-
 
         // Parallelogram glow border
         Shape {
@@ -825,7 +838,7 @@ Scope {
       id: secondaryLauncherPanel
 
       property var modelData
-      property bool isMainMonitor: modelData.name === appLauncher.mainMonitor || (Quickshell.screens.length === 1)
+      property bool isMainMonitor: modelData.name === appLauncher.activeMonitor || (Quickshell.screens.length === 1)
 
       screen: modelData
       visible: appLauncher.showing && !isMainMonitor

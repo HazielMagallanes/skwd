@@ -12,7 +12,10 @@ Rectangle {
   property bool active: false
   readonly property real animatedHeight: _animatedHeight
 
-  property real _targetHeight: 0
+  // Expose the maximum height for the Wayland surface calculation
+  property real fullHeight: volumeColumn.implicitHeight + 24
+  property real _targetHeight: active ? fullHeight : 0
+  
   property real _animatedHeight: _targetHeight
   Behavior on _animatedHeight {
     NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
@@ -22,14 +25,7 @@ Rectangle {
   visible: _animatedHeight > 0
   color: Qt.rgba(root.colors.surface.r, root.colors.surface.g, root.colors.surface.b, 0.88)
 
-  // Expand/collapse on toggle
-  onActiveChanged: {
-    if (active) {
-      _targetHeight = volumeColumn.implicitHeight + 24
-    } else {
-      _targetHeight = 0
-    }
-  }
+
 
   // Bottom accent bar
   Rectangle {

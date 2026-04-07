@@ -342,7 +342,7 @@ def main():
                 print("NOLYRICS", flush=True)
 
             while True:
-                time.sleep(2)
+                time.sleep(0.2)
                 m = get_mpris_metadata()
                 if not m or m.get("status") != "Playing":
                     prev_track_key = None

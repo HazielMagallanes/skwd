@@ -6,6 +6,7 @@ import Quickshell.Bluetooth
 import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Hyprland
 import ".."
 import "lyrics"
 import "dropdowns"
@@ -29,8 +30,12 @@ PanelWindow {
   required property string weatherTemp
   required property string weatherCity
   required property var weatherForecast
-  screen: Quickshell.screens.find(s => s.name === Config.mainMonitor) ?? Quickshell.screens[0]
+  required property var barScreen
+
   WlrLayershell.namespace: "topbar"
+  screen: barScreen
+
+
   WlrLayershell.keyboardFocus: {
     if (activeDropdown !== "") {
       return WlrKeyboardFocus.Exclusive
@@ -50,7 +55,6 @@ PanelWindow {
   property real waveformHeight: 14
   property real slideOffset: barVisible ? 0 : -(barHeight + topMargin)
 
-
   // Dropdown state management
   property string activeDropdown: ""
 
@@ -69,19 +73,23 @@ PanelWindow {
 
   property real animatedBarHeight: barHeight + topMargin + slideOffset
 
+  property int currentWorkspace: Hyprland.focusedMonitor?.activeWorkspace?.id ?? 1
+  property int totalWorkspaces: 10
+
   // Dropdown height calculations for stacking
-  property real _wifiH: Config.wifiEnabled ? wifiDropdown.animatedHeight : 0
-  property real _volumeH: Config.volumeEnabled ? volumeDropdown.animatedHeight : 0
-  property real _calendarH: Config.calendarEnabled ? calendarDropdown.animatedHeight : 0
-  property real _bluetoothH: Config.bluetoothEnabled ? bluetoothDropdown.animatedHeight : 0
-  property real _weatherH: Config.weatherEnabled ? weatherDropdown.animatedHeight : 0
-  property real totalDropdownHeight: _wifiH + _volumeH + _calendarH + _bluetoothH + _weatherH
+  property real _wifiH: (Config.wifiEnabled && bar.activeDropdown === "wifi") ? wifiDropdown.fullHeight : 0
+  property real _calendarH: (Config.calendarEnabled && bar.activeDropdown === "clock") ? calendarDropdown.fullHeight : 0
+  property real totalDropdownHeight: _calendarH + _wifiH
   property bool _lyricsPlaying: Config.musicEnabled ? lyricsIsland.musicPlaying : false
   implicitHeight: Math.max(1, animatedBarHeight) + totalDropdownHeight + (_lyricsPlaying ? waveformHeight : 0)
   exclusiveZone: barVisible ? barHeight + topMargin : 0
   color: "transparent"
 
-
+  Rectangle {
+    anchors.fill: barRoot
+    color: Qt.rgba(0, 0, 0, 0.67) // Semi-transparent dark bg
+    z: -1
+  }
   // Workspace focus dispatcher
   Process {
     id: wsDispatcher
@@ -115,22 +123,6 @@ PanelWindow {
   property real diagSlant: 28
 
 
-  // Bluetooth device and battery info
-  QtObject {
-    id: bluetoothInfo
-    property var connectedDevices: {
-      if (!Bluetooth.defaultAdapter || !Bluetooth.defaultAdapter.devices) return []
-      return Bluetooth.defaultAdapter.devices.values.filter(dev => dev && dev.connected)
-    }
-    property string batteryText: {
-      let batteries = connectedDevices
-        .filter(d => d.batteryAvailable && d.battery > 0)
-        .map(d => Math.round(d.battery * 100) + "%")
-      return batteries.length > 0 ? batteries[0] : ""
-    }
-  }
-
-
   // Main bar layout container
   Item {
     id: barRoot
@@ -140,15 +132,12 @@ PanelWindow {
     anchors.topMargin: bar.slideOffset + bar.topMargin
     height: bar.barHeight
 
-
-    // Left panel (CPU, GPU, memory stats)
-    Item {
+  Item {
       id: leftPanel
-      visible: true
       anchors.left: parent.left
       anchors.top: parent.top
       anchors.bottom: parent.bottom
-      width: leftContent.implicitWidth + bar.diagSlant + 24
+      width: leftContent.implicitWidth + bar.diagSlant + 32
 
       Canvas {
         id: leftBg
@@ -156,102 +145,156 @@ PanelWindow {
         onPaint: {
           var ctx = getContext("2d")
           ctx.clearRect(0, 0, width, height)
-
           ctx.beginPath()
           ctx.moveTo(0, 0)
           ctx.lineTo(width, 0)
           ctx.lineTo(width - bar.diagSlant, height)
           ctx.lineTo(0, height)
           ctx.closePath()
-          ctx.fillStyle = Qt.rgba(bar.colors.surface.r, bar.colors.surface.g, bar.colors.surface.b, 0.88)
+          ctx.fillStyle = Qt.rgba(bar.colors.surface.r, bar.colors.surface.g, bar.colors.surface.b, 0.88) 
           ctx.fill()
         }
         Connections {
           target: bar.colors
-          function onSurfaceChanged() { leftBg.requestPaint() }
-          function onPrimaryChanged() { leftBg.requestPaint() }
+          function onSurfaceChanged() { leftBg.requestPaint() } 
         }
       }
 
-
       Row {
         id: leftContent
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.centerIn: parent
         anchors.horizontalCenterOffset: -bar.diagSlant / 2
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: 8
+        spacing: 16
 
-
+        // Workspaces
         Row {
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: 4
-          Text {
-            text: "󰻠"
-            font.pixelSize: 14
-            font.family: Style.fontFamilyNerdIcons
-            color: bar.colors.primary
-          }
-          Text {
-            text: Math.round(bar.cpuUsage) + "%"
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            font.family: Style.fontFamily
-            color: bar.colors.tertiary
-          }
-          Text {
-            text: Math.round(bar.cpuTemp) + "°"
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            font.family: Style.fontFamily
-            color: bar.colors.tertiary
+          id: workspaceRow
+          spacing: 12
+
+          Repeater {
+            model: bar.totalWorkspaces
+            delegate: MouseArea {
+              width: 20
+              height: 20
+              cursorShape: Qt.PointingHandCursor
+              
+              onClicked: Hyprland.dispatch(`workspace ${index + 1}`)
+
+              Rectangle {
+                anchors.centerIn: parent
+                width: bar.currentWorkspace === (index + 1) ? 12 : 6
+                height: 6
+                radius: 3
+                color: bar.currentWorkspace === (index + 1) ? bar.colors.primary : bar.colors.tertiary
+                
+                Behavior on width { NumberAnimation { duration: 200 } }
+              }
+            }
           }
         }
 
-
-        Row {
+        // Vertical Separator
+        Rectangle {
+          width: 1
+          height: 14
+          color: bar.colors.tertiary
+          opacity: 0.3
           anchors.verticalCenter: parent.verticalCenter
-          spacing: 4
-          Text {
-            text: "󰢮"
-            font.pixelSize: 14
-            font.family: Style.fontFamilyNerdIcons
-            color: bar.colors.primary
-          }
-          Text {
-            text: Math.round(bar.gpuUsage) + "%"
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            font.family: Style.fontFamily
-            color: bar.colors.tertiary
-          }
-          Text {
-            text: Math.round(bar.gpuTemp) + "°"
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            font.family: Style.fontFamily
-            color: bar.colors.tertiary
-          }
         }
 
-
+        // Quick Actions
         Row {
+          id: quickActionsRow
+          spacing: 12
           anchors.verticalCenter: parent.verticalCenter
-          spacing: 4
+
+          // Processes
+          Process { id: discordProcess; command: ["discord"] }
+          Process { id: explorerProcess; command: ["kitty", "yazi"] }
+          Process { id: firefoxProcess; command: ["firefox"] }
+          Process { id: vscodeProcess; command: ["code"] }
+          Process { id: rebootWindowsProcess; command: ["sh", "-c", "grub-reboot 'Windows Boot Manager' && reboot"] }
+
+          // Discord Button
           Text {
-            text: "󰍛"
+            text: ""
             font.pixelSize: 14
             font.family: Style.fontFamilyNerdIcons
-            color: bar.colors.primary
+            color: discordMouse.containsMouse ? bar.colors.primary : bar.colors.tertiary
+            Behavior on color { ColorAnimation { duration: 150 } }
+            MouseArea {
+              id: discordMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: discordProcess.running = true
+            }
           }
+
+          // Explorer Button
           Text {
-            text: Math.round(bar.memUsage) + "%"
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            font.family: Style.fontFamily
-            color: bar.colors.tertiary
+            text: "󰉋"
+            font.pixelSize: 14
+            font.family: Style.fontFamilyNerdIcons
+            color: explorerMouse.containsMouse ? bar.colors.primary : bar.colors.tertiary
+            Behavior on color { ColorAnimation { duration: 150 } }
+            MouseArea {
+              id: explorerMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: explorerProcess.running = true
+            }
+          }
+
+          // Firefox Button
+          Text {
+            text: ""
+            font.pixelSize: 14
+            font.family: Style.fontFamilyNerdIcons
+            color: firefoxMouse.containsMouse ? bar.colors.primary : bar.colors.tertiary
+            Behavior on color { ColorAnimation { duration: 150 } }
+            MouseArea {
+              id: firefoxMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: firefoxProcess.running = true
+            }
+          }
+
+          // VS Code Button
+          Text {
+            text: "󰨞"
+            font.pixelSize: 14
+            font.family: Style.fontFamilyNerdIcons
+            color: vscodeMouse.containsMouse ? bar.colors.primary : bar.colors.tertiary
+            Behavior on color { ColorAnimation { duration: 150 } }
+            MouseArea {
+              id: vscodeMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: vscodeProcess.running = true
+            }
+          }
+
+          // Windows Restart Button (Last)
+          Text {
+            text: ""
+            font.pixelSize: 14
+            font.family: Style.fontFamilyNerdIcons
+            color: windowsMouse.containsMouse ? bar.colors.primary : bar.colors.tertiary
+            Behavior on color { ColorAnimation { duration: 150 } }
+            MouseArea {
+              id: windowsMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: rebootWindowsProcess.running = true
+            }
           }
         }
-
       }
     }
 
@@ -269,16 +312,14 @@ PanelWindow {
       barHeight: bar.barHeight
       waveformHeight: bar.waveformHeight
     }
-  }
 
-
-    // Right panel (weather, bluetooth, wifi, volume, clock)
+    // Right panel (wifi, volume, clock, temps)
     Item {
       id: rightPanel
       z: 1
       anchors.right: parent.right
-      y: bar.slideOffset + bar.topMargin + bar.totalDropdownHeight
-      height: bar.barHeight
+      anchors.top: parent.top        // Locks to barRoot
+      anchors.bottom: parent.bottom  // Locks to barRoot
       width: rightContent.implicitWidth + bar.diagSlant + 24
 
       Canvas {
@@ -304,7 +345,6 @@ PanelWindow {
         }
       }
 
-
       Row {
         id: rightContent
         anchors.horizontalCenter: parent.horizontalCenter
@@ -312,166 +352,127 @@ PanelWindow {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 14
 
-
-        // Weather widget with condition icon
+        // Unified Network Widget (Ethernet & WiFi)
         Item {
-          id: weatherWidget
-          implicitWidth: weatherRow.implicitWidth
-          implicitHeight: weatherRow.implicitHeight
-          visible: Config.weatherEnabled && bar.weatherTemp !== "" && bar.weatherTemp !== undefined
+          id: networkWidget
+          implicitWidth: networkRow.implicitWidth
+          implicitHeight: networkRow.implicitHeight
+          visible: true
+
+          // Properties exposed for the dropdown
+          property string networkName: networkInfo.name
+          property int networkSignal: networkInfo.signalStrength
 
           Row {
-            id: weatherRow
+            id: networkRow
             spacing: 4
             Text {
               text: {
-                let desc = bar.weatherDesc.toLowerCase()
-                if (desc.includes("thunder")) return "󰙾"
-                if (desc.includes("blizzard") || desc.includes("blowing snow")) return "󰼶"
-                if (desc.includes("heavy snow")) return "󰼶"
-                if (desc.includes("snow")) return "󰖘"
-                if (desc.includes("ice pellet") || desc.includes("sleet")) return "󰙿"
-                if (desc.includes("torrential") || desc.includes("heavy rain")) return "󰖖"
-                if (desc.includes("freezing rain") || desc.includes("freezing drizzle")) return "󰙿"
-                if (desc.includes("rain") || desc.includes("drizzle") || desc.includes("shower")) return "󰖗"
-                if (desc.includes("fog") || desc.includes("mist")) return "󰖑"
-                if (desc.includes("overcast") || desc.includes("cloudy")) return "󰖐"
-                if (desc.includes("partly")) return "󰖕"
-                if (desc.includes("sunny") || desc.includes("clear")) return "󰖙"
-                return "󰖐"
+                if (networkInfo.type === "ethernet") return "󰈀 "
+                if (networkInfo.type === "wifi") {
+                  let s = networkInfo.signalStrength
+                  if (s < 25) return "󰤟 "
+                  if (s < 50) return "󰤢 "
+                  if (s < 75) return "󰤥 "
+                  return "󰤨 "
+                }
+                return "󰖪 " 
               }
               font.pixelSize: 14
               font.family: Style.fontFamilyNerdIcons
-              color: bar.colors.primary
+              color: bar.colors.network
             }
             Text {
-              text: bar.weatherTemp
+              text: networkInfo.name !== "" ? networkInfo.name : "Disconnected"
               font.pixelSize: 12
               font.weight: Font.Medium
               font.family: Style.fontFamily
-              color: bar.colors.tertiary
-            }
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              bar.activeDropdown = bar.activeDropdown === "weather" ? "" : "weather"
-            }
-          }
-        }
-
-
-        // Bluetooth widget with battery level
-        Item {
-          id: bluetoothWidget
-          implicitWidth: bluetoothRow.implicitWidth
-          implicitHeight: bluetoothRow.implicitHeight
-          visible: Config.bluetoothEnabled && bluetoothInfo.batteryText !== ""
-
-          Row {
-            id: bluetoothRow
-            spacing: 4
-            Text {
-              text: "󰂯"
-              font.pixelSize: 14
-              font.family: Style.fontFamilyNerdIcons
-              color: bar.colors.primary
-            }
-            Text {
-              text: bluetoothInfo.batteryText
-              font.pixelSize: 12
-              font.weight: Font.Medium
-              font.family: Style.fontFamily
-              color: bar.colors.tertiary
-            }
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              bar.activeDropdown = bar.activeDropdown === "bluetooth" ? "" : "bluetooth"
-            }
-          }
-        }
-
-
-        // WiFi widget with signal strength
-        Item {
-          id: wifiWidget
-          implicitWidth: wifiRow.implicitWidth
-          implicitHeight: wifiRow.implicitHeight
-          visible: Config.wifiEnabled && wifiInfo.ssid !== ""
-
-          Row {
-            id: wifiRow
-            spacing: 4
-            Text {
-              text: {
-                let s = wifiInfo.signalStrength
-                if (s < 25) return "󰤟"
-                if (s < 50) return "󰤢"
-                if (s < 75) return "󰤥"
-                return "󰤨"
-              }
-              font.pixelSize: 14
-              font.family: Style.fontFamilyNerdIcons
-              color: bar.colors.primary
-            }
-            Text {
-              text: wifiInfo.ssid
-              font.pixelSize: 12
-              font.weight: Font.Medium
-              font.family: Style.fontFamily
-              color: bar.colors.tertiary
+              color: bar.colors.network
             }
           }
 
           QtObject {
-            id: wifiInfo
-            property string ssid: ""
+            id: networkInfo
+            property string type: "disconnected"
+            property string name: ""
             property int signalStrength: 0
-            Component.onCompleted: wifiStatusProcess.running = true
+            Component.onCompleted: networkPollTimer.start()
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            // Toggle the dropdown when clicked
+            onClicked: bar.activeDropdown = bar.activeDropdown === "wifi" ? "" : "wifi"
+          }
+
+          Process {
+            id: networkProcess
+            command: ["sh", "-c", "nmcli -t -f TYPE,CONNECTION,DEVICE dev | grep -m1 -E '^(ethernet|wifi):' || echo 'disconnected'"]
+            onExited: {
+              if (networkInfo.type === "wifi") wifiSignalProcess.running = true
+              else networkPollTimer.start()
+            }
+            stdout: SplitParser {
+              onRead: data => {
+                let parts = data.trim().split(":")
+                if (parts[0] === "disconnected" || parts.length < 2) {
+                  networkInfo.type = "disconnected"
+                  networkInfo.name = ""
+                } else {
+                  networkInfo.type = parts[0]
+                  networkInfo.name = parts[1]
+                }
+              }
+            }
+          }
+
+          Process {
+            id: wifiSignalProcess
+            command: ["sh", "-c", "nmcli -t -f IN-USE,SIGNAL dev wifi | grep '^\\*' | cut -d: -f2"]
+            onExited: networkPollTimer.start()
+            stdout: SplitParser {
+              onRead: data => {
+                let signal = parseInt(data.trim())
+                if (!isNaN(signal)) networkInfo.signalStrength = signal
+              }
+            }
+          }
+
+          Timer {
+            id: networkPollTimer
+            interval: 5000 
+            onTriggered: networkProcess.running = true
+          }
+        }
+
+        // Stats widgets (CPU, GPU, memory usage and temperatures) - click to open system monitor
+        Item {
+          id: statsWidget
+          visible: Config.statsEnabled
+          implicitWidth: statsRow.implicitWidth
+          implicitHeight: statsRow.implicitHeight
+          Process {
+            id: monitorToggleProcess
+            command: ["kitty", "btop"]
+          }
+          Row {
+            id: statsRow
+            spacing: 12
+            Text { text: "  " + Math.round(bar.cpuTemp) + "°C"; color: bar.colors.tempCpu; font.family: Style.fontFamilyNerdIcons; font.pixelSize: Style.fontBodyLarge }
+            Text { text: "󰢮  " + Math.round(bar.gpuTemp) + "°C"; color: bar.colors.tempGpu; font.family: Style.fontFamilyNerdIcons; font.pixelSize: Style.fontBodyLarge }
+            Text { text: "   " + Math.round(bar.memUsage) + "%"; color: bar.colors.memory; font.family: Style.fontFamilyNerdIcons; font.pixelSize: Style.fontBodyLarge }
           }
 
           MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-              bar.activeDropdown = bar.activeDropdown === "wifi" ? "" : "wifi"
+              // Safely execute the system monitor process
+              monitorToggleProcess.running = true
             }
-          }
-          Process {
-            id: wifiStatusProcess
-            property string pendingSsid: ""
-            command: ["sh", "-c", "iwctl station " + Config.wifiInterface + " show 2>/dev/null | awk '/Connected network/{print $3} /^[[:space:]]*RSSI/{gsub(/-| dBm/,\"\"); print $2}'"]
-            onExited: {
-              wifiInfo.ssid = pendingSsid !== "" ? pendingSsid : ""
-              pendingSsid = ""
-              wifiPollTimer.start()
-            }
-            stdout: SplitParser {
-              onRead: data => {
-                let trimmed = data.trim()
-                if (trimmed && !trimmed.match(/^-?[0-9]+$/)) {
-                  wifiStatusProcess.pendingSsid = trimmed
-                } else if (trimmed.match(/^-?[0-9]+$/)) {
-                  let rssi = -parseInt(trimmed)
-                  wifiInfo.signalStrength = Math.max(0, Math.min(100, (rssi + 90) * 100 / 60))
-                }
-              }
-            }
-          }
-          Timer {
-            id: wifiPollTimer
-            interval: Config.wifiPollMs
-            onTriggered: wifiStatusProcess.running = true
           }
         }
-
-
         // Volume widget with level icon
         Item {
           id: volumeWidget
@@ -479,20 +480,36 @@ PanelWindow {
           implicitWidth: volumeRow.implicitWidth
           implicitHeight: volumeRow.implicitHeight
 
+          Process {
+            id: audioToggleProcess
+            command: ["/home/haziel/.config/waybar/toggle-audio.sh", "toggle"]
+          }
+
           Row {
             id: volumeRow
             spacing: 4
             Text {
               text: {
-                let vol = Pipewire.defaultAudioSink?.audio?.volume ?? 0
-                if (vol === 0) return "󰖁"
+                let sink = Pipewire.defaultAudioSink
+                if (!sink || !sink.audio) return "󰖁"
+
+                let vol = sink.audio.volume
+                let isMuted = sink.audio.muted
+                let desc = (sink.description || "").toLowerCase()
+                let name = (sink.name || "").toLowerCase()
+
+                if (isMuted || vol === 0) return "󰝟" 
+
+                if (desc.includes("headphone") || desc.includes("headset") || name.includes("bluez") || desc.includes("analog")) return "󰋋" 
+                if (desc.includes("hdmi") || desc.includes("tv")) return "󰡁" 
+
                 if (vol < 0.33) return "󰕿"
                 if (vol < 0.66) return "󰖀"
                 return "󰕾"
               }
               font.pixelSize: 14
               font.family: Style.fontFamilyNerdIcons
-              color: bar.colors.primary
+              color: bar.colors.audio
               width: 16
               horizontalAlignment: Text.AlignHCenter
             }
@@ -501,7 +518,7 @@ PanelWindow {
               font.pixelSize: 12
               font.weight: Font.Medium
               font.family: Style.fontFamily
-              color: bar.colors.tertiary
+              color: bar.colors.audio
               width: Math.max(implicitWidth, 28)
             }
           }
@@ -509,8 +526,19 @@ PanelWindow {
           MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              bar.activeDropdown = bar.activeDropdown === "volume" ? "" : "volume"
+            
+            // Execute process safely
+            onClicked: audioToggleProcess.running = true
+            
+            onWheel: (wheel) => {
+              let sink = Pipewire.defaultAudioSink
+              if (!sink || !sink.audio) return
+              
+              let step = 0.05 
+              let currentVol = sink.audio.volume
+              
+              if (wheel.angleDelta.y > 0) sink.audio.volume = Math.min(1.0, currentVol + step)
+              if (wheel.angleDelta.y < 0) sink.audio.volume = Math.max(0.0, currentVol - step)
             }
           }
         }
@@ -527,25 +555,32 @@ PanelWindow {
             id: clockRow
             spacing: 0
             Text {
+              text: " "
+              font.pixelSize: 13
+              font.weight: Font.DemiBold
+              font.family: Style.fontFamily
+              color: bar.colors.clock
+            }
+            Text {
               text: Qt.formatTime(bar.clock.date, "HH")
               font.pixelSize: 13
               font.weight: Font.DemiBold
               font.family: Style.fontFamily
-              color: bar.colors.primary
+              color: bar.colors.clock
             }
             Text {
               text: ":"
               font.pixelSize: 13
               font.weight: Font.DemiBold
               font.family: Style.fontFamily
-              color: bar.colors.tertiary
+              color: bar.colors.clock
             }
             Text {
               text: Qt.formatTime(bar.clock.date, "mm")
               font.pixelSize: 13
               font.weight: Font.DemiBold
               font.family: Style.fontFamily
-              color: bar.colors.tertiary
+              color: bar.colors.clock
             }
           }
 
@@ -560,6 +595,7 @@ PanelWindow {
 
       }
     }
+  }
 
   // Dropdown panel instances (stacked below the bar)
   WiFiDropdown {
@@ -569,47 +605,19 @@ PanelWindow {
     width: rightPanel.width
     colors: bar.colors
     active: Config.wifiEnabled && bar.activeDropdown === "wifi"
-    wifiSsid: wifiInfo.ssid
-    wifiSignalStrength: wifiInfo.signalStrength
-  }
-
-  VolumeDropdown {
-    id: volumeDropdown
-    anchors.right: parent.right
-    y: bar.slideOffset + bar.topMargin + bar._wifiH
-    width: rightPanel.width
-    colors: bar.colors
-    active: Config.volumeEnabled && bar.activeDropdown === "volume"
+    
+    // Bind to the new network properties
+    wifiSsid: networkWidget.networkName
+    wifiSignalStrength: networkWidget.networkSignal
   }
 
   CalendarDropdown {
     id: calendarDropdown
     anchors.right: parent.right
-    y: bar.slideOffset + bar.topMargin + bar._wifiH + bar._volumeH
+    y: bar.slideOffset + bar.topMargin + bar._wifiH
     width: rightPanel.width
     colors: bar.colors
     active: Config.calendarEnabled && bar.activeDropdown === "clock"
     clock: bar.clock
-  }
-
-  BluetoothDropdown {
-    id: bluetoothDropdown
-    anchors.right: parent.right
-    y: bar.slideOffset + bar.topMargin + bar._wifiH + bar._volumeH + bar._calendarH
-    width: rightPanel.width
-    colors: bar.colors
-    active: Config.bluetoothEnabled && bar.activeDropdown === "bluetooth"
-    connectedDevices: bluetoothInfo.connectedDevices
-  }
-
-  WeatherDropdown {
-    id: weatherDropdown
-    anchors.right: parent.right
-    y: bar.slideOffset + bar.topMargin + bar._wifiH + bar._volumeH + bar._calendarH + bar._bluetoothH
-    width: rightPanel.width
-    colors: bar.colors
-    active: Config.weatherEnabled && bar.activeDropdown === "weather"
-    weatherCity: bar.weatherCity
-    weatherForecast: bar.weatherForecast
   }
 }
